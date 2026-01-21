@@ -1,0 +1,98 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+.env
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Visual Studio
+.vs/
+Debug/
+Release/
+x64/
+x86/
+*.suo
+*.user
+*.pdb
+*.ilk
+*.aps
+*.ncb
+*.opensdf
+*.sdf
+*.cachefile
+*.obj
+*.tlog
+
+# Model weights (Large files)
+# Keep small ones if needed, but exclude huge ones
+# *.pt
+# *.onnx
+# *.tflite
+# Keeping them for now as per user context, but normally we ignore them.
+# The user wants to "upload Lumina", so probably expects the models to be there if they are part of the demo.
+# I will NOT ignore .pt/.onnx/.tflite for now unless they are > 100MB.
+# yoloe-v8s-seg.pt is likely < 50MB.
+
+# Android
+.gradle/
+local.properties
+.idea/caches
+.idea/libraries
+.idea/modules
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
