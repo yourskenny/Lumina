@@ -72,15 +72,10 @@ x86/
 *.obj
 *.tlog
 
-# Model weights (Large files)
-# Keep small ones if needed, but exclude huge ones
+# Model weights
 # *.pt
 # *.onnx
 # *.tflite
-# Keeping them for now as per user context, but normally we ignore them.
-# The user wants to "upload Lumina", so probably expects the models to be there if they are part of the demo.
-# I will NOT ignore .pt/.onnx/.tflite for now unless they are > 100MB.
-# yoloe-v8s-seg.pt is likely < 50MB.
 
 # Android
 .gradle/
@@ -88,6 +83,7 @@ local.properties
 .idea/caches
 .idea/libraries
 .idea/modules
+.idea/modules.xml
 .idea/workspace.xml
 .idea/navEditor.xml
 .idea/assetWizardSettings.xml
@@ -96,3 +92,5 @@ build/
 captures/
 .externalNativeBuild/
 .cxx/
+*.iml
+
