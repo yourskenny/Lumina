@@ -19,6 +19,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import com.example.myapplication.data.remote.NetworkModule
 
 /**
  * 相机UI状态
@@ -28,7 +32,9 @@ data class CameraUiState(
     val recordingStats: RecordingStats = RecordingStats(),
     val isPermissionGranted: Boolean = false,
     val errorMessage: String? = null,
-    val isVoiceListening: Boolean = false
+    val isVoiceListening: Boolean = false,
+    val isRealtimeAnalysisEnabled: Boolean = false,
+    val analysisResult: String? = null
 )
 
 /**
@@ -317,6 +323,82 @@ class CameraViewModel(
             }
             VoiceCommand.UNKNOWN -> {
                 Log.d(TAG, "未识别的命令")
+            }
+        }
+    }
+
+    /**
+     * 切换实时分析
+     */
+    fun toggleRealtimeAnalysis() {
+        if (_uiState.value.isRealtimeAnalysisEnabled) {
+            stopRealtimeAnalysis()
+        } else {
+            startRealtimeAnalysis()
+        }
+    }
+
+    private fun stopRealtimeAnalysis() {
+        _uiState.value = _uiState.value.copy(isRealtimeAnalysisEnabled = false)
+        ttsService.speak("停止实时分析")
+    }
+
+    private fun startRealtimeAnalysis() {
+        _uiState.value = _uiState.value.copy(isRealtimeAnalysisEnabled = true)
+        ttsService.speak("开启实时分析")
+        
+        viewModelScope.launch {
+            while (_uiState.value.isRealtimeAnalysisEnabled) {
+                analyzeCurrentScene()
+                delay(3000) // 每3秒分析一次
+            }
+        }
+    }
+
+    private fun analyzeCurrentScene() {
+        if (!cameraRepository.isRecording()) { // 避免干扰录像
+             val photoFile = mediaRepository.createTempPhotoFile()
+        
+             cameraRepository.takePicture(
+                outputFile = photoFile,
+                onSuccess = {
+                    uploadAndAnalyze(photoFile)
+                },
+                onError = { e ->
+                    Log.e(TAG, "Analysis capture failed", e)
+                }
+            )
+        }
+    }
+
+    private fun uploadAndAnalyze(file: java.io.File) {
+        viewModelScope.launch {
+            try {
+                val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
+                val body = MultipartBody.Part.createFormData("file", file.name, requestFile)
+                
+                val response = NetworkModule.apiService.analyzeImage(body)
+                
+                // 处理响应
+                if (response.status.state == "DANGER") {
+                    hapticService.feedbackError() // 强震动
+                    if (response.feedback.ttsMessage.isNotEmpty()) {
+                        ttsService.speak(response.feedback.ttsMessage, urgent = true)
+                    }
+                } else if (response.status.state == "CAUTION") {
+                    hapticService.feedbackWarning()
+                }
+
+                _uiState.value = _uiState.value.copy(
+                    analysisResult = "${response.status.state}: ${response.status.summary}"
+                )
+
+                // 清理临时文件
+                file.delete()
+
+            } catch (e: Exception) {
+                Log.e(TAG, "API call failed", e)
+                // 网络错误不频繁播报
             }
         }
     }

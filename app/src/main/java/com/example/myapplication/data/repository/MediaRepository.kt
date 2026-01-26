@@ -73,6 +73,13 @@ class MediaRepository(private val context: Context) {
     }
 
     /**
+     * 创建临时照片文件用于上传分析
+     */
+    fun createTempPhotoFile(): File {
+        return File.createTempFile("temp_capture", ".jpg", context.cacheDir)
+    }
+
+    /**
      * 检查可用存储空间
      * @return 可用空间大小(MB)
      */

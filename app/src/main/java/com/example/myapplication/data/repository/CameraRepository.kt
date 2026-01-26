@@ -223,6 +223,37 @@ class CameraRepository(private val context: Context) {
     }
 
     /**
+     * 拍照并保存到指定文件 (无需录像状态)
+     */
+    fun takePicture(
+        outputFile: java.io.File,
+        onSuccess: () -> Unit,
+        onError: (ImageCaptureException) -> Unit
+    ) {
+        val imageCapture = this.imageCapture ?: run {
+            Log.e(TAG, "ImageCapture未初始化")
+            return
+        }
+
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(outputFile).build()
+
+        imageCapture.takePicture(
+            outputOptions,
+            cameraExecutor,
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    onSuccess()
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    Log.e(TAG, "拍照失败", exception)
+                    onError(exception)
+                }
+            }
+        )
+    }
+
+    /**
      * 检查是否正在录像
      */
     fun isRecording(): Boolean {
