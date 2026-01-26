@@ -180,6 +180,9 @@ gradle/libs.versions.toml                ✅ 版本管理
 # 克隆项目后,同步Gradle
 ./gradlew build
 
+
+./gradlew clean assembleDebug
+
 # 运行应用
 ./gradlew installDebug
 ```
