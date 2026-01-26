@@ -17,32 +17,32 @@ We eliminated the need for heavy depth cameras. Lumina implements a lightweight 
 
 ### 3. Intelligent Hazard Prioritization
 The system doesn't just "detect" objects; it "understands" danger.
-*   Objects are classified into Path (Safe), Interaction (Neutral), and Hazard (Danger).
+*   Objects are classified into `Path` (Safe), `Interaction` (Neutral), and `Hazard` (Danger).
 *   Voice feedback is prioritized: Immediate Hazards > Path Confirmation > General Description.
 
 ##  Architecture
-*   **Core Engine**: lind_assist_module.py - Encapsulates the YOLOE inference and distance logic.
-*   **Interface**: detect.py - Real-time visualization and TTS (Text-to-Speech) trigger.
+*   **Core Engine**: `blind_navigator.py` - Encapsulates the YOLOE inference and distance logic.
+*   **Interface**: `detect.py` - Real-time visualization and TTS (Text-to-Speech) trigger.
 *   **Model**: YOLOE-v8s-seg (Segmentation enabled for precise path delineation).
-*   **Mobile Deployment**: Includes export scripts (export_for_mobile.py) to convert models for Android (TFLite) and iOS.
+*   **Mobile Deployment**: Includes export scripts (`export_for_mobile.py`) to convert models for Android (TFLite) and iOS.
 
 ## � Quick Start
 
 1. **Clone the Repository**
-   `ash
+   ```bash
    git clone https://github.com/yourskenny/Lumina.git
    cd Lumina/OpenSight_Core
-   `
+   ```
 
 2. **Install Dependencies**
-   `ash
+   ```bash
    pip install ultralytics opencv-python
-   `
+   ```
 
 3. **Run the Assistant**
-   `ash
+   ```bash
    python detect.py
-   `
+   ```
    *The system will automatically download the necessary YOLOE weights on the first run.*
 
 ##  Mobile Deployment
@@ -50,10 +50,10 @@ To deploy Lumina to Android or iOS, please verify our deployment guide:
 [DEPLOY_MOBILE.md](./OpenSight_Core/DEPLOY_MOBILE.md)
 
 1. Run the export script:
-   `ash
+   ```bash
    python export_for_mobile.py
-   `
-2. Follow the integration steps in the guide to embed the .tflite model into your app.
+   ```
+2. Follow the integration steps in the guide to embed the `.tflite` model into your app.
 
 ##  Roadmap
 *   [ ] Integration with Android/iOS Camera API.

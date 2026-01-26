@@ -2,7 +2,7 @@ import cv2
 import time
 import sys
 # 引入我们自定义的核心模块
-from blind_assist_module import BlindAssistProcessor
+from blind_navigator import BlindNavigator
 
 def run_lumina():
     print("=========================================")
@@ -12,7 +12,7 @@ def run_lumina():
     
     # 初始化核心处理器
     try:
-        processor = BlindAssistProcessor()
+        processor = BlindNavigator()
     except Exception as e:
         print(f"Critical Error: Failed to initialize AI engine. {e}")
         return
@@ -52,7 +52,7 @@ def run_lumina():
         cv2.putText(display_frame, "Lumina Mode: Active", (20, 40), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
         
-        if scene_data["hazards"]:
+        if scene_data["environment"]["hazards"]:
             cv2.putText(display_frame, "WARNING: OBSTACLE", (20, 80), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
