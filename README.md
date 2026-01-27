@@ -1,94 +1,151 @@
-﻿﻿﻿﻿# Lumina: Next-Gen Vision Assistant for the Visually Impaired
+﻿﻿# Lumina: Intelligent Offline Vision Assistant
+
+> **Empowering the visually impaired with real-time, offline, on-device AI navigation.**
+
+![Lumina Banner](https://via.placeholder.com/1200x400?text=Lumina+Vision+Assistant)
 
 ## 🌟 Project Overview
-**Lumina** is a software-defined, open-vocabulary navigation assistant designed to run on ubiquitous hardware (standard laptops/smartphones). Unlike traditional solutions that rely on expensive depth sensors (LiDAR/RGB-D) or closed-set detection models, Lumina leverages **YOLOE (Open-Vocabulary Object Detection)** and **Monocular Depth Heuristics** to provide real-time, context-aware navigation aids.
 
-## 🚀 Key Innovations
+**Lumina** is a cutting-edge Android application designed to act as a digital eye for visually impaired users. Unlike traditional solutions that rely on cloud APIs or heavy server backends, Lumina runs **entirely offline** on the smartphone. 
 
-### 1. Open-Vocabulary Perception (Powered by Lumina Engine)
-Traditional blind assistants can only detect pre-trained categories (e.g., "car", "person"). Lumina introduces a dynamic perception engine that can understand complex scene semantics.
-*   **Current Mode**: Optimized for urban navigation (detecting tactile paving, crosswalks, traffic lights).
-*   **Future Capability**: Users can issue voice commands like "Find the empty seat" or "Locate the elevator," and the model adapts in real-time.
+It leverages **ONNX Runtime** to execute advanced **YOLOE (You Only Look At Coefficients)** object detection models directly on the device's CPU/NPU/GPU. This ensures **zero latency**, **perfect privacy** (no images leave the device), and **reliability** even in areas without internet connection.
 
-### 2. Software-Defined Depth Estimation
-We eliminated the need for heavy depth cameras. Lumina implements a lightweight **Monocular Depth Heuristic Algorithm**.
-*   By analyzing the grounding point (bounding box bottom) relative to the horizon, the system estimates distance zones (Immediate, Near, Far) with zero hardware cost.
-*   This makes the solution deployable on any standard webcam or phone camera.
+## 🚀 Key Features
 
-### 3. Intelligent Hazard Prioritization
-The system doesn't just "detect" objects; it "understands" danger.
-*   Objects are classified into `Path` (Safe), `Interaction` (Neutral), and `Hazard` (Danger).
-*   Voice feedback is prioritized: Immediate Hazards > Path Confirmation > General Description.
+*   **⚡ Fully Offline Inference**: Powered by `onnxruntime-android`, eliminating network dependency and latency.
+*   **🧠 Advanced Perception**: Uses a custom-trained **YOLOE-v8s-Seg** model optimized for blind assist scenarios.
+*   **📏 Monocular Depth Estimation**: Innovative heuristic algorithm calculates distance and direction of obstacles using standard 2D cameras.
+*   **🛡️ Privacy First**: All image processing happens locally in RAM. No data uploads.
+*   **🔊 Multi-Modal Feedback**:
+    *   **Text-to-Speech (TTS)**: Verbal warnings for hazards (e.g., "Car ahead, 2 meters").
+    *   **Haptic Feedback**: Vibration patterns indicating proximity and danger levels.
+*   **🗣️ Voice Control**: Hands-free operation with voice commands like "Capture", "Pause", etc.
 
 ## 🏗️ System Architecture
 
-The project consists of two main components working together:
+Lumina has evolved from a client-server model to a robust **Standalone Edge AI Architecture**.
 
-1.  **Backend (Brain)**:
-    *   **Tech Stack**: Python, FastAPI, YOLOE (Ultralytics), OpenCV.
-    *   **Core Logic**: `OpenSight_Core/blind_navigator.py` encapsulates the inference and spatial analysis.
-    *   **Interface**: `OpenSight_Core/api.py` provides a REST API (`POST /analyze`) for clients.
+```mermaid
+graph TD
+    subgraph "Android Device (Pixel/Samsung/etc.)"
+        Camera[CameraX Input] -->|Bitmap Stream| ViewModel[CameraViewModel]
+        
+        subgraph "AI Core (ObjectDetector.kt)"
+            ViewModel -->|Bitmap| Preprocess[Pre-processing\n(Resize/Normalize)]
+            Preprocess -->|FloatBuffer| ONNX[ONNX Runtime Engine]
+            
+            subgraph "Assets"
+                ModelFile[yoloe-v8s-seg.onnx]
+            end
+            
+            ModelFile -.->|Load| ONNX
+            ONNX -->|Raw Tensor| Postprocess[Post-processing]
+            
+            subgraph "Post-processing Logic"
+                Postprocess --> Parser[Output Parser]
+                Parser --> NMS[Non-Maximum Suppression]
+                NMS --> Spatial[Spatial Analysis\n(Distance & Direction)]
+            end
+        end
+        
+        Spatial -->|DetectionResult| ViewModel
+        ViewModel -->|State Update| UI[Jetpack Compose UI]
+        ViewModel -->|Text| TTS[Text-To-Speech]
+        ViewModel -->|Vibration| Haptic[Haptic Feedback]
+    end
+```
 
-2.  **Frontend (Eyes & Ears)**:
-    *   **Tech Stack**: Android (Kotlin), Jetpack Compose, CameraX, Retrofit.
-    *   **Features**:
-        *   **Real-time Analysis**: Captures images periodically and sends them to the backend.
-        *   **Voice Commands**: Hands-free control (e.g., "Pause", "Capture").
-        *   **Feedback**: Text-to-Speech (TTS) for alerts and Haptic feedback for danger warnings.
-        *   **Video Recording**: Continuous background recording for safety logging.
+### Core Components
 
-## 📦 Directory Structure
+1.  **ObjectDetector (`domain/detector/ObjectDetector.kt`)**:
+    *   The heart of the application.
+    *   Manages the **ONNX Runtime Session**.
+    *   Performs raw tensor data parsing from the YOLOE model.
+    *   Implements **NMS (Non-Maximum Suppression)** to filter redundant detection boxes.
+    *   Calculates **Spatial Depth** based on bounding box positioning.
+
+2.  **CameraViewModel (`presentation/viewmodel/CameraViewModel.kt`)**:
+    *   Manages the application state (Safe, Caution, Danger).
+    *   Coordinations camera frames with the detector.
+    *   Throttles TTS messages to prevent audio clutter.
+
+3.  **UI Layer (`MainActivity.kt`)**:
+    *   Built with **Jetpack Compose** for a modern, responsive interface.
+    *   Displays a real-time camera feed with overlay bounding boxes (for sighted assistants/debugging).
+
+## 🛠️ Technical Stack
+
+*   **Language**: Kotlin
+*   **UI Framework**: Jetpack Compose
+*   **Camera**: CameraX
+*   **AI Engine**: [ONNX Runtime for Android](https://onnxruntime.ai/)
+*   **Model Architecture**: YOLOE (YOLO Efficient)
+*   **Build System**: Gradle (Kotlin DSL)
+
+## � Project Structure
 
 ```
 Lumina/
-├── OpenSight_Core/           # Backend System
-│   ├── api.py               # FastAPI Server Entry Point
-│   ├── blind_navigator.py   # Core AI Logic & YOLOE Wrapper
-│   ├── detect.py            # Desktop/Local Demo Interface
-│   ├── best.pt              # Trained Model Weights
-│   └── ...
-├── app/                      # Android Application
-│   ├── src/main/java/...    # Kotlin Source Code (MVVM Architecture)
-│   ├── src/main/AndroidManifest.xml
-│   └── ...
-├── gradle/                   # Android Build System
-└── requirements.txt          # Python Dependencies
+├── app/
+│   ├── src/main/
+│   │   ├── assets/
+│   │   │   └── yoloe-v8s-seg.onnx      # The AI Model File
+│   │   ├── java/com/example/myapplication/
+│   │   │   ├── domain/detector/
+│   │   │   │   └── ObjectDetector.kt   # Core Inference Logic
+│   │   │   ├── presentation/
+│   │   │   │   └── viewmodel/          # State Management
+│   │   │   └── MainActivity.kt         # UI Entry Point
+│   │   └── AndroidManifest.xml
+│   └── build.gradle.kts                # Dependencies
+└── ...
 ```
 
-## 🏁 Quick Start
+## 🏁 Getting Started
 
-### 1. Backend Setup
-Prerequisite: Python 3.8+
+### Prerequisites
+*   Android Studio (Koala or newer recommended).
+*   Android Device with Android 8.0 (Oreo) or higher.
 
-```bash
-# Clone the repository
-git clone https://github.com/yourskenny/Lumina.git
-cd Lumina
+### Installation
 
-# Install dependencies
-pip install -r requirements.txt
+1.  **Clone the Repository**:
+    ```bash
+    git clone https://github.com/YourUsername/Lumina.git
+    ```
 
-# Start the Server
-python OpenSight_Core/api.py
-```
-*Server will start at `http://0.0.0.0:5000`*
+2.  **Open in Android Studio**:
+    *   Select `Open` and navigate to the `Lumina` directory.
+    *   Wait for Gradle sync to complete.
 
-### 2. Android App Setup
-Prerequisite: Android Studio Koala+
+3.  **Run on Device**:
+    *   Connect your Android phone via USB.
+    *   Click the **Run** (Play) button.
+    *   Grant Camera and Microphone permissions when prompted.
 
-1.  Open `Lumina/` project in Android Studio.
-2.  Navigate to `app/src/main/java/com/example/myapplication/data/remote/NetworkModule.kt`.
-3.  Update `BASE_URL` to your computer's IP address (e.g., `http://192.168.1.100:5000/`).
-4.  Build and Run on a physical device (ensure phone and PC are on the same WiFi).
+## 🧩 Model Details
 
-## 📱 Features Checklist
-- [x] **Object Detection**: Recognizes hazards, paths, and interactions.
-- [x] **Distance Estimation**: Estimates distance without depth sensors.
-- [x] **Voice Feedback**: TTS alerts for immediate dangers.
-- [x] **Haptic Feedback**: Vibration patterns for different alert levels.
-- [x] **Voice Control**: "Capture", "Pause", "Resume", "Close App".
-- [x] **Video Recording**: Background loop recording.
-- [x] **Cloud/Edge Integration**: App offloads processing to the Python backend.
+The current model is a **YOLOE-v8s-seg** variant exported to ONNX format.
+
+*   **Input Size**: 320x320
+*   **Classes**: Specialized subsets for blind assistance:
+    *   **Hazards**: Car, Motorcycle, Pole, Tree, Fire Hydrant, etc.
+    *   **Paths**: Crosswalk, Stairs, Tactile Paving.
+    *   **Interactions**: Person, Chair, Traffic Light.
+*   **Format**: ONNX (Opset 17)
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these steps:
+1.  Fork the project.
+2.  Create your feature branch (`git checkout -b feature/AmazingFeature`).
+3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`).
+4.  Push to the branch (`git push origin feature/AmazingFeature`).
+5.  Open a Pull Request.
+
+## 📄 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
-*Powered by YOLOE & Monocular Depth Estimation*
+*Built with ❤️ for the Software Innovation Contest.*
