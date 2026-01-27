@@ -19,10 +19,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.asRequestBody
-import com.example.myapplication.data.remote.NetworkModule
+import android.graphics.BitmapFactory
+import com.example.myapplication.domain.detector.ObjectDetector
+import com.example.myapplication.data.model.RawObject
 
 /**
  * 相机UI状态
@@ -46,7 +45,8 @@ class CameraViewModel(
     private val mediaRepository: MediaRepository,
     private val ttsService: TextToSpeechService,
     private val voiceService: VoiceRecognitionService,
-    private val hapticService: HapticFeedbackService
+    private val hapticService: HapticFeedbackService,
+    private val objectDetector: ObjectDetector // 注入本地检测器
 ) : ViewModel() {
 
     private val TAG = "CameraViewModel"
@@ -356,13 +356,13 @@ class CameraViewModel(
     }
 
     private fun analyzeCurrentScene() {
-        if (!cameraRepository.isRecording()) { // 避免干扰录像
+        if (!cameraRepository.isRecording()) { 
              val photoFile = mediaRepository.createTempPhotoFile()
         
              cameraRepository.takePicture(
                 outputFile = photoFile,
                 onSuccess = {
-                    uploadAndAnalyze(photoFile)
+                    analyzeLocalImage(photoFile)
                 },
                 onError = { e ->
                     Log.e(TAG, "Analysis capture failed", e)
@@ -371,34 +371,53 @@ class CameraViewModel(
         }
     }
 
-    private fun uploadAndAnalyze(file: java.io.File) {
+    private fun analyzeLocalImage(file: java.io.File) {
         viewModelScope.launch {
             try {
-                val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
-                val body = MultipartBody.Part.createFormData("file", file.name, requestFile)
+                // 1. 加载本地图片
+                val bitmap = BitmapFactory.decodeFile(file.absolutePath)
                 
-                val response = NetworkModule.apiService.analyzeImage(body)
+                // 2. 本地推理
+                val result = objectDetector.detect(bitmap)
                 
-                // 处理响应
-                if (response.status.state == "DANGER") {
-                    hapticService.feedbackError() // 强震动
-                    if (response.feedback.ttsMessage.isNotEmpty()) {
-                        ttsService.speak(response.feedback.ttsMessage, urgent = true)
+                // 3. 处理结果 (模仿 api.py 的逻辑)
+                var state = "SAFE"
+                var summary = "Path is clear"
+                
+                var nearestHazardDist = 999.0
+                var nearestHazardName = ""
+                
+                // 查找最近的危险
+                for (hazard in result.hazards) {
+                    if (hazard.distanceM < nearestHazardDist) {
+                        nearestHazardDist = hazard.distanceM
+                        nearestHazardName = hazard.name
                     }
-                } else if (response.status.state == "CAUTION") {
+                }
+                
+                if (nearestHazardDist < 1.5) {
+                    state = "DANGER"
+                    summary = "STOP! $nearestHazardName ahead"
+                    hapticService.feedbackError()
+                    ttsService.speak("Warning. $nearestHazardName ahead. $nearestHazardDist meters.", urgent = true)
+                } else if (nearestHazardDist < 3.0) {
+                    state = "CAUTION"
+                    summary = "$nearestHazardName detected"
                     hapticService.feedbackWarning()
+                } else if (result.paths.isNotEmpty()) {
+                    state = "SAFE"
+                    summary = "Follow ${result.paths[0].name}"
                 }
 
                 _uiState.value = _uiState.value.copy(
-                    analysisResult = "${response.status.state}: ${response.status.summary}"
+                    analysisResult = "$state: $summary"
                 )
 
-                // 清理临时文件
+                // 清理
                 file.delete()
-
+                
             } catch (e: Exception) {
-                Log.e(TAG, "API call failed", e)
-                // 网络错误不频繁播报
+                Log.e(TAG, "Local analysis failed", e)
             }
         }
     }

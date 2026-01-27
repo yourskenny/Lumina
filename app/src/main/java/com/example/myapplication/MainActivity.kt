@@ -10,6 +10,7 @@ import com.example.myapplication.domain.service.HapticFeedbackService
 import com.example.myapplication.domain.service.TextToSpeechService
 import com.example.myapplication.domain.service.VoiceCommand
 import com.example.myapplication.domain.service.VoiceRecognitionService
+import com.example.myapplication.domain.detector.ObjectDetector
 import com.example.myapplication.presentation.screen.CameraScreen
 import com.example.myapplication.presentation.viewmodel.CameraViewModel
 import com.example.myapplication.ui.theme.MyApplicationTheme
@@ -26,6 +27,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var hapticService: HapticFeedbackService
     private lateinit var cameraRepository: CameraRepository
     private lateinit var mediaRepository: MediaRepository
+    private lateinit var objectDetector: ObjectDetector // 新增
     private lateinit var viewModel: CameraViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,6 +39,9 @@ class MainActivity : ComponentActivity() {
 
         // 初始化仓库
         initializeRepositories()
+        
+        // 初始化检测器
+        objectDetector = ObjectDetector(this)
 
         // 初始化ViewModel
         initializeViewModel()
@@ -85,7 +90,8 @@ class MainActivity : ComponentActivity() {
             mediaRepository = mediaRepository,
             ttsService = ttsService,
             voiceService = voiceService,
-            hapticService = hapticService
+            hapticService = hapticService,
+            objectDetector = objectDetector
         )
     }
 
@@ -123,5 +129,6 @@ class MainActivity : ComponentActivity() {
         ttsService.shutdown()
         voiceService.release()
         cameraRepository.release()
+        objectDetector.close() // 释放模型
     }
 }

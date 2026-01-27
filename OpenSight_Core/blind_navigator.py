@@ -1,13 +1,24 @@
 import time
 import math
 import numpy as np
+import os
 from ultralytics import YOLOE
 
 class BlindNavigator:
-    def __init__(self, model_path="jameslahm/yoloe-v8s-seg", device="cpu"):
+    def __init__(self, model_path=None, device="cpu"):
         print(f"[Lumina] Initializing AI Engine ({device})...")
         self.device = device
-        # 加载 YOLOE 模型
+        
+        # 优先使用本地最佳模型，否则使用默认模型
+        if model_path is None:
+            if os.path.exists("best.pt"):
+                model_path = "best.pt"
+            elif os.path.exists("OpenSight_Core/best.pt"):
+                model_path = "OpenSight_Core/best.pt"
+            else:
+                model_path = "jameslahm/yoloe-v8s-seg" # Fallback to HF/Hub model
+        
+        print(f"[Lumina] Loading model from: {model_path}")
         self.model = YOLOE.from_pretrained(model_path)
         
         # --- 创新点 1: 针对视障场景的语义定义 ---
