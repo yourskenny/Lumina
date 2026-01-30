@@ -17,10 +17,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // 防止 TFLite 原生库压缩
-    aaptOptions {
-        noCompress("tflite")
-    }
+    
 
     buildTypes {
         release {
@@ -64,16 +61,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     // Network
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.converter.gson)
-    implementation(libs.okhttp)
-    implementation(libs.gson)
-
-    // TensorFlow Lite (Keep for backup)
-    implementation(libs.tensorflow.lite)
-    implementation(libs.tensorflow.lite.support)
-    implementation(libs.tensorflow.lite.gpu)
-    implementation(libs.tensorflow.lite.metadata)
 
     // ONNX Runtime
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.17.0")

@@ -2,39 +2,25 @@
 
 This guide explains how to deploy the **Lumina** obstacle detection engine to Android and iOS devices.
 
-## 1. Export the Model
-First, run the export script to generate mobile-optimized models from the Python environment:
+## 1. Model Export (ONNX)
+The `export_model.py` script now focuses on exporting to ONNX format, which is the primary inference engine for the Lumina Android app.
+
 ```bash
-python export_for_mobile.py
+# Export YOLOE model to ONNX format
+python export_model.py --model yoloe-v8s-seg --format onnx --opset 12
 ```
+
 This will generate:
-- `yoloe-v8s-seg-int8.tflite` (Optimized for Android)
-- `yoloe-v8s-seg.onnx` (Universal format)
+- `yoloe-v8s-seg.onnx` (Standard ONNX model)
 
-## 2. Android Deployment (TFLite)
+## 2. Android Integration
+Copy the exported `.onnx` file to the Android project assets directory:
 
-### Prerequisites
-- Android Studio Koala or later
-- Android Device (Android 10+)
+```bash
+cp runs/export/yoloe-v8s-seg.onnx ../app/src/main/assets/
+```
 
-### Integration Steps
-1.  **Create Assets Folder**: In your Android project, create `app/src/main/assets/`.
-2.  **Copy Model**: Copy `yoloe-v8s-seg-int8.tflite` to the assets folder.
-3.  **Add Dependencies**:
-    Add the following to your `build.gradle`:
-    ```gradle
-    implementation 'org.tensorflow:tensorflow-lite:2.14.0'
-    implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
-    implementation 'org.tensorflow:tensorflow-lite-gpu:2.14.0'
-    ```
-4.  **Inference Code (Java/Kotlin)**:
-    Use the `Interpreter` class to load the model:
-    ```java
-    try (Interpreter interpreter = new Interpreter(loadModelFile("yoloe-v8s-seg-int8.tflite"))) {
-        // Run inference
-        interpreter.run(inputBitmap, outputBuffer);
-    }
-    ```
+The Android app is configured to load `yoloe-v8s-seg.onnx` using the ONNX Runtime library. TFLite support has been deprecated in favor of ONNX Runtime for better performance and feature support with YOLOE models.
 
 ## 3. iOS Deployment (CoreML)
 

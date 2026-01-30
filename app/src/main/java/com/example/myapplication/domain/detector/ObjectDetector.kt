@@ -7,6 +7,7 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
 import com.example.myapplication.data.model.RawObject
+import kotlin.math.exp
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Collections
@@ -58,8 +59,7 @@ class ObjectDetector(private val context: Context) {
             ortEnvironment = OrtEnvironment.getEnvironment()
             val modelBytes = context.assets.open(MODEL_NAME).readBytes()
             val sessionOptions = OrtSession.SessionOptions()
-            // 可以根据需要开启 NNAPI 加速
-            // sessionOptions.addNnapi() 
+            sessionOptions.addNnapi()
             ortSession = ortEnvironment?.createSession(modelBytes, sessionOptions)
             
             // 获取输入节点名称和尺寸
@@ -105,49 +105,39 @@ class ObjectDetector(private val context: Context) {
             val shape = outputTensor?.info?.shape // [1, 116, 2100]
             
             if (outputBuffer != null && shape != null && shape.size == 3) {
-                val channels = shape[1].toInt() // 116
-                val anchors = shape[2].toInt() // 2100
-                
-                // 将 buffer 转为数组以便访问
-                // 注意：buffer 是扁平的，顺序是 [batch, channel, anchor] 还是 [batch, anchor, channel]?
-                // YOLOv8 导出通常是 [1, channels, anchors]，即 channel 在外层循环
-                // 所以 tensor[0][c][i] 对应 buffer[c * anchors + i]
-                
+                val dim1 = shape[1].toInt()
+                val dim2 = shape[2].toInt()
+                val isChannelMajor = dim1 == 116
+                val channels = if (isChannelMajor) dim1 else dim2
+                val anchors = if (isChannelMajor) dim2 else dim1
                 val flattened = FloatArray(channels * anchors)
                 outputBuffer.get(flattened)
-                
+                fun idx(channel: Int, anchor: Int): Int {
+                    return if (isChannelMajor) channel * anchors + anchor else anchor * channels + channel
+                }
                 val candidates = ArrayList<DetectionCandidate>()
-                
                 for (i in 0 until anchors) {
-                    // 寻找最大置信度的类别
                     var maxScore = -Float.MAX_VALUE
                     var maxClassId = -1
-                    
-                    // 类必须从 index 4 开始，到 83 结束 (80 classes)
                     for (c in 0 until 80) {
-                        val score = flattened[(4 + c) * anchors + i]
+                        val scoreRaw = flattened[idx(4 + c, i)]
+                        val score = (1f / (1f + exp(-scoreRaw)))
                         if (score > maxScore) {
                             maxScore = score
                             maxClassId = c
                         }
                     }
-                    
                     if (maxScore > CONFIDENCE_THRESHOLD) {
-                        // 解析坐标
-                        val cx = flattened[0 * anchors + i]
-                        val cy = flattened[1 * anchors + i]
-                        val w = flattened[2 * anchors + i]
-                        val h = flattened[3 * anchors + i]
-                        
-                        // 还原到原始 Bitmap 尺寸
+                        val cx = flattened[idx(0, i)]
+                        val cy = flattened[idx(1, i)]
+                        val w = flattened[idx(2, i)]
+                        val h = flattened[idx(3, i)]
                         val scaleX = bitmap.width.toFloat() / inputSize
                         val scaleY = bitmap.height.toFloat() / inputSize
-                        
                         val x1 = (cx - w / 2) * scaleX
                         val y1 = (cy - h / 2) * scaleY
                         val x2 = (cx + w / 2) * scaleX
                         val y2 = (cy + h / 2) * scaleY
-                        
                         candidates.add(DetectionCandidate(
                             classId = maxClassId,
                             score = maxScore,
