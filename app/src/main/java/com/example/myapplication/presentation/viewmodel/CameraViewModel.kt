@@ -8,12 +8,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.myapplication.data.model.CameraState
 import com.example.myapplication.data.model.RecordingStats
+import android.content.Context
 import com.example.myapplication.data.repository.CameraRepository
 import com.example.myapplication.data.repository.MediaRepository
+import com.example.myapplication.data.repository.VideoPlaybackRepository
+import com.example.myapplication.data.repository.StorageManagementRepository
+import com.example.myapplication.data.repository.SettingsRepository
+import com.example.myapplication.data.repository.LocationRepository
 import com.example.myapplication.domain.service.HapticFeedbackService
+import com.example.myapplication.domain.service.EmergencyService
+import com.example.myapplication.util.BatteryUtils
+import com.example.myapplication.util.MicrophoneTest
 import com.example.myapplication.domain.service.TextToSpeechService
 import com.example.myapplication.domain.service.VoiceCommand
 import com.example.myapplication.domain.service.VoiceRecognitionService
+import com.example.myapplication.domain.service.VoiceDebugInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +37,16 @@ data class CameraUiState(
     val recordingStats: RecordingStats = RecordingStats(),
     val isPermissionGranted: Boolean = false,
     val errorMessage: String? = null,
-    val isVoiceListening: Boolean = false
+    val isVoiceListening: Boolean = false,
+    val voiceDebugText: String = "",           // 语音识别的文本
+    val voiceVolume: Float = 0f,                // 麦克风音量 (0-10)
+    val voiceError: String? = null,             // 语音识别错误
+    val micTestResult: String? = null,          // 麦克风测试结果
+    val isMicTesting: Boolean = false,          // 是否正在测试麦克风
+    val currentLanguage: String = "中文",       // 当前识别语言
+    val isRecognitionTesting: Boolean = false,  // 是否正在测试识别
+    val showTextInput: Boolean = true,          // 是否显示文本输入（调试用）
+    val testCommandResult: String? = null       // 命令测试结果
 )
 
 /**
@@ -36,8 +54,14 @@ data class CameraUiState(
  * 协调相机、TTS、语音识别和触觉反馈服务
  */
 class CameraViewModel(
+    private val context: Context,
     private val cameraRepository: CameraRepository,
     private val mediaRepository: MediaRepository,
+    private val videoPlaybackRepository: VideoPlaybackRepository,
+    private val storageManagementRepository: StorageManagementRepository,
+    private val settingsRepository: SettingsRepository,
+    private val locationRepository: LocationRepository,
+    private val emergencyService: EmergencyService,
     private val ttsService: TextToSpeechService,
     private val voiceService: VoiceRecognitionService,
     private val hapticService: HapticFeedbackService
@@ -51,12 +75,29 @@ class CameraViewModel(
     private var totalSegments = 0
     private var isAutoRecording = false
 
+    // 麦克风测试工具
+    private var microphoneTest: MicrophoneTest? = null
+
     init {
         // 监听相机状态变化
         viewModelScope.launch {
             cameraRepository.cameraState.collect { state ->
                 _uiState.value = _uiState.value.copy(cameraState = state)
             }
+        }
+
+        // 将LocationRepository注入到MediaRepository
+        mediaRepository.setLocationRepository(locationRepository)
+
+        // 设置初始语言
+        _uiState.value = _uiState.value.copy(currentLanguage = voiceService.getCurrentLanguage())
+
+        // 启动GPS位置跟踪
+        if (locationRepository.hasLocationPermission()) {
+            locationRepository.startTracking()
+            Log.d(TAG, "GPS位置跟踪已启动")
+        } else {
+            Log.w(TAG, "缺少GPS定位权限，位置跟踪未启动")
         }
     }
 
@@ -187,11 +228,19 @@ class CameraViewModel(
 
                     Log.d(TAG, "视频已保存: ${event.outputResults.outputUri}")
 
-                    // 自动清理超过10分钟的旧录像
+                    // 智能存储管理：自动清理
                     viewModelScope.launch {
-                        val deletedCount = mediaRepository.deleteOldRecordings(maxAgeMinutes = 10)
+                        val cleanupPolicy = StorageManagementRepository.CleanupPolicy(
+                            maxAgeMinutes = 60,        // 保留最近60分钟的视频
+                            maxVideoCount = 20,        // 最多保留20个视频
+                            maxTotalSizeMB = 1024,     // 最多占用1GB空间
+                            minFreeSpaceMB = 500,      // 确保至少500MB剩余空间
+                            enableAutoCleanup = true   // 启用自动清理
+                        )
+
+                        val deletedCount = storageManagementRepository.performSmartCleanup(cleanupPolicy)
                         if (deletedCount > 0) {
-                            Log.d(TAG, "自动删除了 $deletedCount 个超过10分钟的旧录像")
+                            Log.d(TAG, "智能清理：自动删除了 $deletedCount 个文件")
                         }
                     }
 
@@ -292,10 +341,368 @@ class CameraViewModel(
     }
 
     /**
+     * 播放最新视频
+     */
+    fun playLatestVideo() {
+        viewModelScope.launch {
+            val success = videoPlaybackRepository.playLatestVideo()
+            if (success) {
+                ttsService.speak("正在播放最新视频")
+                hapticService.feedbackSuccess()
+                Log.d(TAG, "启动视频播放")
+            } else {
+                val message = "没有找到可播放的视频"
+                ttsService.speak(message)
+                hapticService.feedbackWarning()
+                Log.d(TAG, message)
+            }
+        }
+    }
+
+    /**
+     * 分享最新视频
+     */
+    fun shareLatestVideo() {
+        viewModelScope.launch {
+            val success = videoPlaybackRepository.shareLatestVideo()
+            if (success) {
+                ttsService.speak("正在分享视频")
+                hapticService.feedbackSuccess()
+                Log.d(TAG, "启动视频分享")
+            } else {
+                val message = "没有找到可分享的视频"
+                ttsService.speak(message)
+                hapticService.feedbackWarning()
+                Log.d(TAG, message)
+            }
+        }
+    }
+
+    /**
+     * 查询存储空间
+     */
+    fun checkStorageInfo() {
+        viewModelScope.launch {
+            val stats = storageManagementRepository.getStorageStats()
+            val message = "当前有 ${stats.totalVideoCount} 个视频，" +
+                    "占用 ${stats.totalSizeMB} 兆，" +
+                    "剩余空间 ${stats.availableSpaceMB} 兆"
+            ttsService.speak(message)
+            hapticService.feedbackSuccess()
+            Log.d(TAG, "存储信息: $stats")
+        }
+    }
+
+    /**
+     * 切换摄像头（前/后）
+     */
+    fun switchCamera() {
+        val cameraType = cameraRepository.switchCamera()
+        ttsService.speak("已切换到${cameraType}摄像头")
+        hapticService.feedbackSuccess()
+        Log.d(TAG, "切换到${cameraType}摄像头")
+    }
+
+    /**
+     * 切换闪光灯
+     */
+    fun toggleFlashlight() {
+        val enabled = cameraRepository.toggleFlashlight()
+        val message = if (enabled) "闪光灯已打开" else "闪光灯已关闭"
+        ttsService.speak(message)
+        hapticService.feedbackSuccess()
+        Log.d(TAG, message)
+    }
+
+    /**
+     * 查询电池状态
+     */
+    fun checkBatteryInfo() {
+        val batteryInfo = BatteryUtils.getBatteryInfo(context)
+        ttsService.speak(batteryInfo)
+        hapticService.feedbackSuccess()
+        Log.d(TAG, "电池信息: $batteryInfo")
+    }
+
+    /**
+     * 查询当前录像时长
+     */
+    fun checkRecordingTime() {
+        if (!cameraRepository.isRecording()) {
+            ttsService.speak("当前未在录像")
+            return
+        }
+
+        val durationSeconds = cameraRepository.getCurrentRecordingDuration()
+        val minutes = durationSeconds / 60
+        val seconds = durationSeconds % 60
+
+        val message = if (minutes > 0) {
+            "已录像${minutes}分钟${seconds}秒"
+        } else {
+            "已录像${seconds}秒"
+        }
+
+        ttsService.speak(message)
+        hapticService.feedbackSuccess()
+        Log.d(TAG, "录像时长: $message")
+    }
+
+    /**
+     * 紧急呼叫
+     */
+    fun emergencyCall() {
+        if (!emergencyService.hasEmergencyContact()) {
+            val message = "未设置紧急联系人"
+            ttsService.speak(message, urgent = true)
+            hapticService.feedbackWarning()
+            Log.w(TAG, message)
+            return
+        }
+
+        val (name, phone) = emergencyService.getEmergencyContactInfo()
+        ttsService.speak("正在拨打紧急联系人${name}的电话", urgent = true)
+
+        val success = emergencyService.callEmergencyContact()
+        if (success) {
+            // 同时发送短信
+            emergencyService.sendEmergencySMS()
+            hapticService.feedbackSuccess()
+            Log.d(TAG, "紧急呼叫成功: $phone")
+        } else {
+            ttsService.speak("拨打电话失败", urgent = true)
+            hapticService.feedbackError()
+            Log.e(TAG, "紧急呼叫失败")
+        }
+    }
+
+    /**
+     * 查询当前GPS位置
+     */
+    fun checkLocation() {
+        if (!locationRepository.hasLocationPermission()) {
+            val message = "未授予定位权限"
+            ttsService.speak(message, urgent = true)
+            hapticService.feedbackWarning()
+            Log.w(TAG, message)
+            return
+        }
+
+        if (!locationRepository.isGpsEnabled()) {
+            val message = "GPS未启用，请在设置中开启定位服务"
+            ttsService.speak(message, urgent = true)
+            hapticService.feedbackWarning()
+            Log.w(TAG, message)
+            return
+        }
+
+        val locationDescription = locationRepository.getLocationDescription()
+        ttsService.speak(locationDescription)
+        hapticService.feedbackSuccess()
+        Log.d(TAG, "位置查询: $locationDescription")
+
+        // 记录当前位置到历史
+        locationRepository.recordLocation(locationRepository.getCurrentLocation())
+    }
+
+    /**
+     * 测试麦克风
+     */
+    fun testMicrophone() {
+        _uiState.value = _uiState.value.copy(
+            isMicTesting = true,
+            micTestResult = "正在测试麦克风，请对着麦克风说话..."
+        )
+
+        ttsService.speak("开始麦克风测试，请对着麦克风说话")
+        Log.d(TAG, "开始麦克风测试")
+
+        // 停止语音识别以避免冲突
+        voiceService.stopListening()
+
+        microphoneTest = MicrophoneTest(context)
+
+        // 先显示配置信息
+        val info = microphoneTest!!.getMicrophoneInfo()
+        Log.d(TAG, info)
+
+        // 开始测试
+        microphoneTest!!.testMicrophone { success, message ->
+            viewModelScope.launch {
+                _uiState.value = _uiState.value.copy(
+                    isMicTesting = false,
+                    micTestResult = if (success) "✅ $message" else "❌ $message"
+                )
+
+                ttsService.speak(if (success) "麦克风测试成功" else "麦克风测试失败")
+                Log.d(TAG, "麦克风测试结果: $message")
+
+                // 测试完成后恢复语音识别
+                delay(2000)
+                voiceService.startListening()
+
+                // 5秒后清除测试结果
+                delay(5000)
+                _uiState.value = _uiState.value.copy(micTestResult = null)
+            }
+        }
+    }
+
+    /**
+     * 更新语音调试信息
+     */
+    fun updateVoiceDebugInfo(debugInfo: VoiceDebugInfo) {
+        _uiState.value = _uiState.value.copy(
+            voiceDebugText = debugInfo.text,
+            voiceVolume = debugInfo.volume,
+            isVoiceListening = debugInfo.isListening,
+            voiceError = debugInfo.error
+        )
+    }
+
+    /**
+     * 切换识别语言
+     */
+    fun switchVoiceLanguage() {
+        voiceService.switchLanguage()
+        val newLanguage = voiceService.getCurrentLanguage()
+        _uiState.value = _uiState.value.copy(currentLanguage = newLanguage)
+        ttsService.speak("已切换到${newLanguage}识别")
+        Log.d(TAG, "切换语言到: $newLanguage")
+    }
+
+    /**
+     * 极简化识别测试
+     */
+    fun testSimpleRecognition() {
+        _uiState.value = _uiState.value.copy(
+            isRecognitionTesting = true,
+            voiceDebugText = "极简测试（无额外参数）..."
+        )
+
+        ttsService.speak("极简测试，请说话")
+        Log.d(TAG, "开始极简识别测试")
+
+        voiceService.testSimpleRecognition { result ->
+            viewModelScope.launch {
+                if (result != null) {
+                    _uiState.value = _uiState.value.copy(
+                        isRecognitionTesting = false,
+                        voiceDebugText = "✅ 极简测试成功: $result"
+                    )
+                    ttsService.speak("识别成功: $result")
+                    Log.d(TAG, "极简测试成功: $result")
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isRecognitionTesting = false,
+                        voiceDebugText = "❌ 极简测试失败，查看日志"
+                    )
+                    ttsService.speak("识别失败")
+                    Log.e(TAG, "极简测试失败")
+                }
+
+                // 5秒后清除结果
+                delay(5000)
+                if (!_uiState.value.isVoiceListening) {
+                    _uiState.value = _uiState.value.copy(voiceDebugText = "")
+                }
+            }
+        }
+    }
+
+    /**
+     * 测试语音识别
+     */
+    fun testRecognition() {
+        _uiState.value = _uiState.value.copy(
+            isRecognitionTesting = true,
+            voiceDebugText = "开始识别测试..."
+        )
+
+        ttsService.speak("开始识别测试，请说话")
+        Log.d(TAG, "开始识别测试")
+
+        voiceService.testRecognition { result ->
+            viewModelScope.launch {
+                if (result != null) {
+                    _uiState.value = _uiState.value.copy(
+                        isRecognitionTesting = false,
+                        voiceDebugText = "✅ 识别成功: $result"
+                    )
+                    ttsService.speak("识别成功: $result")
+                    Log.d(TAG, "识别测试成功: $result")
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isRecognitionTesting = false,
+                        voiceDebugText = "❌ 识别失败，请检查网络和语言设置"
+                    )
+                    ttsService.speak("识别失败")
+                    Log.e(TAG, "识别测试失败")
+                }
+
+                // 5秒后清除结果
+                delay(5000)
+                if (!_uiState.value.isVoiceListening) {
+                    _uiState.value = _uiState.value.copy(voiceDebugText = "")
+                }
+            }
+        }
+    }
+
+    /**
+     * 测试文本命令（绕过语音识别）
+     */
+    fun testTextCommand(text: String) {
+        if (text.isBlank()) {
+            _uiState.value = _uiState.value.copy(
+                testCommandResult = "⚠️ 请输入命令文本"
+            )
+            return
+        }
+
+        Log.d(TAG, "=== 开始测试文本命令 ===")
+        Log.d(TAG, "输入文本: $text")
+
+        _uiState.value = _uiState.value.copy(
+            voiceDebugText = "测试命令: $text",
+            testCommandResult = "正在处理..."
+        )
+
+        // 使用voiceService的testCommand方法
+        val command = voiceService.testCommand(text)
+
+        if (command != VoiceCommand.UNKNOWN) {
+            _uiState.value = _uiState.value.copy(
+                testCommandResult = "✅ 匹配到命令: $command"
+            )
+            Log.d(TAG, "✅ 命令匹配成功: $command")
+
+            // 执行命令
+            handleVoiceCommand(command)
+
+            ttsService.speak("执行命令: ${command.name}")
+        } else {
+            _uiState.value = _uiState.value.copy(
+                testCommandResult = "❌ 未匹配到命令\n输入: '$text'\n请尝试: '拍照', '查询电池', '暂停录像'"
+            )
+            Log.w(TAG, "❌ 命令匹配失败: $text")
+        }
+
+        // 5秒后清除结果
+        viewModelScope.launch {
+            delay(5000)
+            _uiState.value = _uiState.value.copy(testCommandResult = null)
+        }
+
+        Log.d(TAG, "=== 文本命令测试完成 ===")
+    }
+
+    /**
      * 处理语音命令
      */
     fun handleVoiceCommand(command: VoiceCommand) {
-        Log.d(TAG, "处理语音命令: $command")
+        Log.d(TAG, ">>> 开始执行命令: $command")
+        ttsService.speak(command.name) // 先语音播报命令名称
 
         when (command) {
             VoiceCommand.CAPTURE_PHOTO -> {
@@ -306,6 +713,33 @@ class CameraViewModel(
             }
             VoiceCommand.RESUME_RECORDING -> {
                 resumeRecording()
+            }
+            VoiceCommand.PLAY_VIDEO -> {
+                playLatestVideo()
+            }
+            VoiceCommand.SHARE_VIDEO -> {
+                shareLatestVideo()
+            }
+            VoiceCommand.CHECK_STORAGE -> {
+                checkStorageInfo()
+            }
+            VoiceCommand.SWITCH_CAMERA -> {
+                switchCamera()
+            }
+            VoiceCommand.TOGGLE_FLASHLIGHT -> {
+                toggleFlashlight()
+            }
+            VoiceCommand.CHECK_BATTERY -> {
+                checkBatteryInfo()
+            }
+            VoiceCommand.CHECK_RECORDING_TIME -> {
+                checkRecordingTime()
+            }
+            VoiceCommand.EMERGENCY_CALL -> {
+                emergencyCall()
+            }
+            VoiceCommand.CHECK_LOCATION -> {
+                checkLocation()
             }
             VoiceCommand.CLEAR_RECORDINGS -> {
                 clearAllRecordings()
@@ -329,6 +763,7 @@ class CameraViewModel(
         cameraRepository.release()
         voiceService.release()
         ttsService.shutdown()
+        locationRepository.release()
         Log.d(TAG, "ViewModel资源已释放")
     }
 }

@@ -116,6 +116,27 @@ fun CameraScreen(
                 totalSegments = uiState.recordingStats.totalSegments
             )
 
+            // 语音识别调试面板（底部中间，往上移动）
+            VoiceDebugOverlay(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 200.dp),
+                voiceText = uiState.voiceDebugText,
+                volume = uiState.voiceVolume,
+                isListening = uiState.isVoiceListening,
+                error = uiState.voiceError,
+                micTestResult = uiState.micTestResult,
+                isMicTesting = uiState.isMicTesting,
+                currentLanguage = uiState.currentLanguage,
+                isRecognitionTesting = uiState.isRecognitionTesting,
+                testCommandResult = uiState.testCommandResult,
+                onTestMicrophone = { viewModel.testMicrophone() },
+                onSwitchLanguage = { viewModel.switchVoiceLanguage() },
+                onTestRecognition = { viewModel.testRecognition() },
+                onTestSimpleRecognition = { viewModel.testSimpleRecognition() },
+                onTestCommand = { text -> viewModel.testTextCommand(text) }
+            )
+
             // 底部控制按钮
             ControlButtons(
                 modifier = Modifier
@@ -245,5 +266,237 @@ fun ControlButtons(
             onClick = onClearRecordings,
             contentDescriptionText = "清空所有录像和照片"
         )
+    }
+}
+
+/**
+ * 语音识别调试面板
+ * 显示实时字幕、音量指示器和错误信息
+ */
+@Composable
+fun VoiceDebugOverlay(
+    modifier: Modifier = Modifier,
+    voiceText: String,
+    volume: Float,
+    isListening: Boolean,
+    error: String?,
+    micTestResult: String?,
+    isMicTesting: Boolean,
+    currentLanguage: String,
+    isRecognitionTesting: Boolean,
+    testCommandResult: String?,
+    onTestMicrophone: () -> Unit,
+    onSwitchLanguage: () -> Unit,
+    onTestRecognition: () -> Unit,
+    onTestSimpleRecognition: () -> Unit,
+    onTestCommand: (String) -> Unit
+) {
+    // 总是显示调试面板（因为有按钮）
+    // if (voiceText.isEmpty() && error == null && !isListening && micTestResult == null && !isMicTesting) {
+    //     return
+    // }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+            .padding(16.dp)
+            .semantics {
+                contentDescription = "语音识别调试信息"
+            },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // 监听状态指示器
+        Text(
+            text = if (isListening) "🎤 监听中..." else "🔇 未监听",
+            fontSize = 16.sp,
+            color = if (isListening)
+                MaterialTheme.colorScheme.primary
+            else
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            style = MaterialTheme.typography.bodyMedium
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 音量指示器（显示为进度条）
+        if (isListening && volume > 0) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "音量:",
+                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // 使用方块显示音量等级
+                val volumeBars = (volume.toInt()).coerceIn(0, 10)
+                Text(
+                    text = "█".repeat(volumeBars) + "░".repeat(10 - volumeBars),
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Text(
+                    text = " ${volume.toInt()}/10",
+                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // 识别的文本（实时字幕）
+        if (voiceText.isNotEmpty()) {
+            Text(
+                text = "识别: $voiceText",
+                fontSize = 18.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
+
+        // 错误信息
+        if (error != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "⚠️ $error",
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+        // 麦克风测试结果
+        if (micTestResult != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = micTestResult,
+                fontSize = 16.sp,
+                color = if (micTestResult.startsWith("✅"))
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+        // 当前语言显示
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "当前语言: $currentLanguage",
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.bodyMedium
+        )
+
+        // 按钮区域
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            // 测试麦克风按钮
+            AccessibleButton(
+                text = if (isMicTesting) "测试中..." else "测试麦克风",
+                onClick = onTestMicrophone,
+                contentDescriptionText = "测试麦克风是否正常工作",
+                enabled = !isMicTesting && !isRecognitionTesting
+            )
+
+            // 切换语言按钮
+            AccessibleButton(
+                text = "切换语言",
+                onClick = onSwitchLanguage,
+                contentDescriptionText = "切换识别语言（中文/英文）",
+                enabled = !isMicTesting && !isRecognitionTesting
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            // 测试识别按钮
+            AccessibleButton(
+                text = if (isRecognitionTesting) "识别中..." else "测试识别",
+                onClick = onTestRecognition,
+                contentDescriptionText = "测试语音识别功能",
+                enabled = !isMicTesting && !isRecognitionTesting
+            )
+
+            // 极简测试按钮（诊断用）
+            AccessibleButton(
+                text = "极简测试",
+                onClick = onTestSimpleRecognition,
+                contentDescriptionText = "使用最简配置测试识别",
+                enabled = !isMicTesting && !isRecognitionTesting
+            )
+        }
+
+        // 命令测试结果
+        if (testCommandResult != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = testCommandResult,
+                fontSize = 14.sp,
+                color = if (testCommandResult.startsWith("✅"))
+                    MaterialTheme.colorScheme.primary
+                else if (testCommandResult.startsWith("❌"))
+                    MaterialTheme.colorScheme.error
+                else
+                    MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+        // 分隔线
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "═══ 快捷命令测试 ═══",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            style = MaterialTheme.typography.labelSmall
+        )
+
+        // 快捷命令按钮
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            AccessibleButton(
+                text = "拍照",
+                onClick = { onTestCommand("拍照") },
+                contentDescriptionText = "测试拍照命令"
+            )
+            AccessibleButton(
+                text = "查询电池",
+                onClick = { onTestCommand("查询电池") },
+                contentDescriptionText = "测试查询电池命令"
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            AccessibleButton(
+                text = "暂停录像",
+                onClick = { onTestCommand("暂停录像") },
+                contentDescriptionText = "测试暂停录像命令"
+            )
+            AccessibleButton(
+                text = "继续录像",
+                onClick = { onTestCommand("继续录像") },
+                contentDescriptionText = "测试继续录像命令"
+            )
+        }
     }
 }

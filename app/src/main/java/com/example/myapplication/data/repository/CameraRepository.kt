@@ -39,10 +39,20 @@ class CameraRepository(private val context: Context) {
 
     // CameraX组件
     private var cameraProvider: ProcessCameraProvider? = null
+    private var camera: androidx.camera.core.Camera? = null
     private var preview: Preview? = null
     private var imageCapture: ImageCapture? = null
     private var videoCapture: VideoCapture<Recorder>? = null
     private var activeRecording: Recording? = null
+    private var lifecycleOwner: LifecycleOwner? = null
+    private var previewView: PreviewView? = null
+
+    // 相机选择器（前/后摄像头）
+    private var currentCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+    private var isBackCamera = true
+
+    // 闪光灯状态
+    private var flashEnabled = false
 
     // 相机状态流
     private val _cameraState = MutableStateFlow<CameraState>(CameraState.Idle)
@@ -60,6 +70,10 @@ class CameraRepository(private val context: Context) {
         lifecycleOwner: LifecycleOwner,
         previewView: PreviewView
     ): Result<Unit> = suspendCoroutine { continuation ->
+        // 保存引用以便后续切换摄像头
+        this.lifecycleOwner = lifecycleOwner
+        this.previewView = previewView
+
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
         cameraProviderFuture.addListener({
@@ -86,14 +100,14 @@ class CameraRepository(private val context: Context) {
                     .build()
                 videoCapture = VideoCapture.withOutput(recorder)
 
-                // 选择后置摄像头
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                // 使用当前摄像头选择器
+                val cameraSelector = currentCameraSelector
 
                 // 解绑所有用例
                 cameraProvider?.unbindAll()
 
                 // 绑定用例到相机
-                cameraProvider?.bindToLifecycle(
+                camera = cameraProvider?.bindToLifecycle(
                     lifecycleOwner,
                     cameraSelector,
                     preview,
@@ -237,10 +251,128 @@ class CameraRepository(private val context: Context) {
     }
 
     /**
+     * 切换摄像头（前/后）
+     * @return 切换后的摄像头类型（"前置"/"后置"）
+     */
+    fun switchCamera(): String {
+        if (isRecording()) {
+            Log.w(TAG, "录像中无法切换摄像头")
+            return if (isBackCamera) "后置" else "前置"
+        }
+
+        // 切换摄像头选择器
+        currentCameraSelector = if (isBackCamera) {
+            CameraSelector.DEFAULT_FRONT_CAMERA
+        } else {
+            CameraSelector.DEFAULT_BACK_CAMERA
+        }
+        isBackCamera = !isBackCamera
+
+        // 重新绑定相机
+        rebindCamera()
+
+        val cameraType = if (isBackCamera) "后置" else "前置"
+        Log.d(TAG, "切换到${cameraType}摄像头")
+        return cameraType
+    }
+
+    /**
+     * 重新绑定相机
+     */
+    private fun rebindCamera() {
+        val lifecycleOwner = this.lifecycleOwner ?: return
+        val previewView = this.previewView ?: return
+
+        try {
+            // 解绑所有用例
+            cameraProvider?.unbindAll()
+
+            // 重新绑定
+            preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(previewView.surfaceProvider)
+            }
+
+            camera = cameraProvider?.bindToLifecycle(
+                lifecycleOwner,
+                currentCameraSelector,
+                preview,
+                imageCapture,
+                videoCapture
+            )
+
+            Log.d(TAG, "相机重新绑定成功")
+        } catch (e: Exception) {
+            Log.e(TAG, "相机重新绑定失败", e)
+        }
+    }
+
+    /**
+     * 切换闪光灯状态
+     * @return 新的闪光灯状态（true=开启，false=关闭）
+     */
+    fun toggleFlashlight(): Boolean {
+        flashEnabled = !flashEnabled
+        setFlashlightInternal(flashEnabled)
+        return flashEnabled
+    }
+
+    /**
+     * 设置闪光灯状态
+     * @param enabled 是否开启闪光灯
+     */
+    fun setFlashlight(enabled: Boolean) {
+        flashEnabled = enabled
+        setFlashlightInternal(enabled)
+    }
+
+    /**
+     * 内部设置闪光灯方法
+     */
+    private fun setFlashlightInternal(enabled: Boolean) {
+        try {
+            val cameraControl = camera?.cameraControl
+            if (cameraControl == null) {
+                Log.w(TAG, "相机控制器未初始化")
+                return
+            }
+
+            cameraControl.enableTorch(enabled)
+            Log.d(TAG, "闪光灯${if (enabled) "开启" else "关闭"}")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置闪光灯失败", e)
+        }
+    }
+
+    /**
+     * 查询闪光灯状态
+     * @return 闪光灯是否开启
+     */
+    fun isFlashlightOn(): Boolean {
+        return flashEnabled
+    }
+
+    /**
+     * 获取当前摄像头类型
+     * @return "前置" 或 "后置"
+     */
+    fun getCurrentCameraType(): String {
+        return if (isBackCamera) "后置" else "前置"
+    }
+
+    /**
+     * 获取当前录像时长（秒）
+     * @return 录像时长
+     */
+    fun getCurrentRecordingDuration(): Int {
+        return recordingDurationSeconds
+    }
+
+    /**
      * 释放相机资源
      */
     fun release() {
         stopRecording()
+        setFlashlight(false) // 关闭闪光灯
         cameraProvider?.unbindAll()
         cameraExecutor.shutdown()
         Log.d(TAG, "相机资源已释放")

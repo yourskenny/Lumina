@@ -16,11 +16,22 @@ import java.util.Locale
  * 媒体存储仓库
  * 负责管理视频和照片的存储,使用MediaStore API
  */
-class MediaRepository(private val context: Context) {
+class MediaRepository(
+    private val context: Context,
+    private var locationRepository: LocationRepository? = null
+) {
+
+    /**
+     * 设置LocationRepository（用于依赖注入）
+     */
+    fun setLocationRepository(repository: LocationRepository) {
+        this.locationRepository = repository
+    }
 
     /**
      * 创建视频输出配置
      * 使用MediaStore API将视频保存到Movies/AccessibleCamera目录
+     * 包含GPS位置信息（如果可用）
      * @return MediaStoreOutputOptions配置对象
      */
     fun createVideoOutputOptions(): MediaStoreOutputOptions {
@@ -33,6 +44,15 @@ class MediaRepository(private val context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/AccessibleCamera")
                 put(MediaStore.Video.Media.IS_PENDING, 1)
+            }
+
+            // 添加GPS位置信息
+            locationRepository?.getCurrentLocation()?.let { location ->
+                if (location.isValid()) {
+                    put(MediaStore.Video.Media.LATITUDE, location.latitude)
+                    put(MediaStore.Video.Media.LONGITUDE, location.longitude)
+                    android.util.Log.d("MediaRepository", "视频添加GPS信息: ${location.getShortDescription()}")
+                }
             }
         }
 
@@ -47,11 +67,23 @@ class MediaRepository(private val context: Context) {
     /**
      * 创建照片输出文件
      * 使用MediaStore API将照片保存到Pictures/AccessibleCamera目录
+     * 文件名包含GPS位置信息（如果可用）
      * @return File对象
      */
     fun createPhotoOutputFile(): File {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val fileName = "AccessibleCamera_Photo_$timestamp.jpg"
+
+        // 如果有位置信息，在文件名中包含GPS坐标
+        val fileName = locationRepository?.getCurrentLocation()?.let { location ->
+            if (location.isValid()) {
+                val latStr = String.format("%.4f", location.latitude).replace(".", "_")
+                val lonStr = String.format("%.4f", location.longitude).replace(".", "_")
+                android.util.Log.d("MediaRepository", "照片添加GPS信息: ${location.getShortDescription()}")
+                "AccessibleCamera_Photo_${timestamp}_${latStr}N_${lonStr}E.jpg"
+            } else {
+                "AccessibleCamera_Photo_$timestamp.jpg"
+            }
+        } ?: "AccessibleCamera_Photo_$timestamp.jpg"
 
         val photoDir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             File(
