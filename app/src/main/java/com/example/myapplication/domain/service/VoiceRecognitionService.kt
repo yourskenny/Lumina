@@ -64,6 +64,8 @@ class VoiceRecognitionService(
     private var currentLanguage = "zh-CN" // 当前语言：zh-CN(中文) 或 en-US(英文) - 默认中文
     private var languagePackError = false // 语言包是否出错
     private var fallbackToEnglish = false // 是否已降级到英文
+    private var testRecognizer: SpeechRecognizer? = null // 测试用识别器
+    private var isTesting = false // 是否正在测试
 
     private fun createRecognitionIntent(): Intent {
         return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -409,22 +411,36 @@ class VoiceRecognitionService(
      * 极简化识别测试（用于诊断问题）
      */
     fun testSimpleRecognition(onResult: (String?) -> Unit) {
+        // 检查是否已经在测试中
+        if (isTesting) {
+            Log.w(TAG, "已有测试正在进行中，请稍后再试")
+            onResult(null)
+            return
+        }
+
         Log.d(TAG, "======================================")
         Log.d(TAG, "开始极简化识别测试")
         Log.d(TAG, "使用最基本的配置，无额外参数")
         Log.d(TAG, "======================================")
 
-        // 先停止主识别器，避免冲突
+        isTesting = true
+
+        // 先清理并停止所有识别器
+        cleanupTestRecognizer()
         speechRecognizer?.stopListening()
         shouldRestart = false
 
-        val simpleIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            // 不设置任何其他参数，使用系统默认
-        }
+        // 延迟200ms确保识别器完全停止
+        CoroutineScope(Dispatchers.Main).launch {
+            delay(200)
 
-        val testRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
-        testRecognizer.setRecognitionListener(object : RecognitionListener {
+            val simpleIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                // 不设置任何其他参数，使用系统默认
+            }
+
+            testRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+            testRecognizer?.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 Log.d(TAG, "[极简测试] ✓ 准备接收语音")
             }
@@ -451,19 +467,22 @@ class VoiceRecognitionService(
                     7 -> "ERROR_NO_MATCH (7): 听到声音但无法识别"
                     6 -> "ERROR_SPEECH_TIMEOUT (6): 未检测到声音"
                     5 -> "ERROR_CLIENT (5): 客户端错误"
+                    8 -> "ERROR_RECOGNIZER_BUSY (8): 识别器忙碌"
                     else -> "错误码: $error"
                 }
                 Log.e(TAG, "[极简测试] ✗ 识别失败: $msg")
+                isTesting = false
                 onResult(null)
-                testRecognizer.destroy()
+                cleanupTestRecognizer()
             }
 
             override fun onResults(results: Bundle?) {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 Log.d(TAG, "[极简测试] ✓✓✓ 识别成功！")
                 Log.d(TAG, "[极简测试] 结果: $matches")
+                isTesting = false
                 onResult(matches?.firstOrNull())
-                testRecognizer.destroy()
+                cleanupTestRecognizer()
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
@@ -474,21 +493,29 @@ class VoiceRecognitionService(
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
 
-        Log.d(TAG, "[极简测试] 开始监听...")
-        testRecognizer.startListening(simpleIntent)
+            Log.d(TAG, "[极简测试] 开始监听...")
+            testRecognizer?.startListening(simpleIntent)
+        }
     }
 
     /**
      * 一次性识别测试（不自动重启）
      */
     fun testRecognition(onResult: (String?) -> Unit) {
-        Log.d(TAG, "开始一次性识别测试")
+        // 检查是否已经在测试中
+        if (isTesting) {
+            Log.w(TAG, "已有测试正在进行中，请稍后再试")
+            onResult(null)
+            return
+        }
 
-        // 先停止主识别器，避免冲突
+        Log.d(TAG, "开始一次性识别测试")
+        isTesting = true
+
+        // 先清理并停止所有识别器
+        cleanupTestRecognizer()
         speechRecognizer?.stopListening()
         shouldRestart = false  // 不自动重启
-
-        val intent = createRecognitionIntent()
 
         onDebugInfo?.invoke(VoiceDebugInfo(
             text = "开始识别测试，请说话...",
@@ -497,9 +524,15 @@ class VoiceRecognitionService(
             isListening = true
         ))
 
-        // 临时监听器，用于测试
-        val testRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
-        testRecognizer.setRecognitionListener(object : RecognitionListener {
+        // 延迟200ms确保识别器完全停止
+        CoroutineScope(Dispatchers.Main).launch {
+            delay(200)
+
+            val intent = createRecognitionIntent()
+
+            // 临时监听器，用于测试
+            testRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+            testRecognizer?.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 Log.d(TAG, "[测试] 准备接收语音")
                 onDebugInfo?.invoke(VoiceDebugInfo(
@@ -556,8 +589,9 @@ class VoiceRecognitionService(
                     else -> "未知错误: $error"
                 }
                 Log.e(TAG, "[测试] 识别错误: $errorMsg")
+                isTesting = false
                 onResult(null)
-                testRecognizer.destroy()
+                cleanupTestRecognizer()
             }
 
             override fun onResults(results: Bundle?) {
@@ -565,8 +599,9 @@ class VoiceRecognitionService(
                 val text = matches?.firstOrNull()
                 Log.d(TAG, "[测试] 识别结果: $text")
                 Log.d(TAG, "[测试] 所有结果: $matches")
+                isTesting = false
                 onResult(text)
-                testRecognizer.destroy()
+                cleanupTestRecognizer()
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
@@ -586,7 +621,8 @@ class VoiceRecognitionService(
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
 
-        testRecognizer.startListening(intent)
+            testRecognizer?.startListening(intent)
+        }
     }
 
     /**
@@ -600,10 +636,26 @@ class VoiceRecognitionService(
     }
 
     /**
+     * 清理测试识别器
+     */
+    private fun cleanupTestRecognizer() {
+        try {
+            testRecognizer?.destroy()
+            testRecognizer = null
+            Log.d(TAG, "测试识别器已清理")
+        } catch (e: Exception) {
+            Log.e(TAG, "清理测试识别器失败", e)
+        }
+    }
+
+    /**
      * 释放资源
      */
     fun release() {
+        shouldRestart = false
+        isTesting = false
         stopListening()
+        cleanupTestRecognizer()
         speechRecognizer?.destroy()
         speechRecognizer = null
         Log.d(TAG, "语音识别资源已释放")
