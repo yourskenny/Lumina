@@ -47,6 +47,14 @@ fun DebugDrawer(
     onCheckBattery: () -> Unit,
     onPauseRecording: () -> Unit,
     onResumeRecording: () -> Unit,
+    onPlayVideo: () -> Unit,
+    onShareVideo: () -> Unit,
+    onCheckStorage: () -> Unit,
+    onSwitchCamera: () -> Unit,
+    onToggleFlashlight: () -> Unit,
+    onCheckRecordingTime: () -> Unit,
+    onCheckLocation: () -> Unit,
+    onCloseApp: () -> Unit,
     onEmergencyCall: () -> Unit
 ) {
     AnimatedVisibility(
@@ -127,6 +135,14 @@ fun DebugDrawer(
                             onCheckBattery = onCheckBattery,
                             onPauseRecording = onPauseRecording,
                             onResumeRecording = onResumeRecording,
+                            onPlayVideo = onPlayVideo,
+                            onShareVideo = onShareVideo,
+                            onCheckStorage = onCheckStorage,
+                            onSwitchCamera = onSwitchCamera,
+                            onToggleFlashlight = onToggleFlashlight,
+                            onCheckRecordingTime = onCheckRecordingTime,
+                            onCheckLocation = onCheckLocation,
+                            onCloseApp = onCloseApp,
                             onEmergencyCall = onEmergencyCall
                         )
 
@@ -274,6 +290,14 @@ private fun UserFunctionSection(
     onCheckBattery: () -> Unit,
     onPauseRecording: () -> Unit,
     onResumeRecording: () -> Unit,
+    onPlayVideo: () -> Unit,
+    onShareVideo: () -> Unit,
+    onCheckStorage: () -> Unit,
+    onSwitchCamera: () -> Unit,
+    onToggleFlashlight: () -> Unit,
+    onCheckRecordingTime: () -> Unit,
+    onCheckLocation: () -> Unit,
+    onCloseApp: () -> Unit,
     onEmergencyCall: () -> Unit
 ) {
     Column {
@@ -301,6 +325,7 @@ private fun UserFunctionSection(
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // 第1行：拍照 + 查询电池
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -309,16 +334,17 @@ private fun UserFunctionSection(
                     onClick = onTakePhoto,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("拍照")
+                    Text("拍照", fontSize = 12.sp)
                 }
                 Button(
                     onClick = onCheckBattery,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("查询电池")
+                    Text("查询电池", fontSize = 12.sp)
                 }
             }
 
+            // 第2行：暂停录像 + 继续录像
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -327,13 +353,89 @@ private fun UserFunctionSection(
                     onClick = onPauseRecording,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("暂停录像")
+                    Text("暂停录像", fontSize = 12.sp)
                 }
                 Button(
                     onClick = onResumeRecording,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("继续录像")
+                    Text("继续录像", fontSize = 12.sp)
+                }
+            }
+
+            // 第3行：播放视频 + 分享视频
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onPlayVideo,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("播放视频", fontSize = 12.sp)
+                }
+                Button(
+                    onClick = onShareVideo,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("分享视频", fontSize = 12.sp)
+                }
+            }
+
+            // 第4行：查询存储 + 查询时长
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onCheckStorage,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("查询存储", fontSize = 12.sp)
+                }
+                Button(
+                    onClick = onCheckRecordingTime,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("查询时长", fontSize = 12.sp)
+                }
+            }
+
+            // 第5行：切换相机 + 切换闪光
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onSwitchCamera,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("切换相机", fontSize = 12.sp)
+                }
+                Button(
+                    onClick = onToggleFlashlight,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("切换闪光", fontSize = 12.sp)
+                }
+            }
+
+            // 第6行：查询位置 + 关闭应用
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onCheckLocation,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("查询位置", fontSize = 12.sp)
+                }
+                Button(
+                    onClick = onCloseApp,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("关闭应用", fontSize = 12.sp)
                 }
             }
 

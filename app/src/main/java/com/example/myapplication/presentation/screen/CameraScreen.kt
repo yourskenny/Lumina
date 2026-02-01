@@ -150,6 +150,14 @@ fun CameraScreen(
                 onCheckBattery = { viewModel.testTextCommand("查询电池") },
                 onPauseRecording = { viewModel.testTextCommand("暂停录像") },
                 onResumeRecording = { viewModel.testTextCommand("继续录像") },
+                onPlayVideo = { viewModel.playLatestVideo() },
+                onShareVideo = { viewModel.shareLatestVideo() },
+                onCheckStorage = { viewModel.checkStorageInfo() },
+                onSwitchCamera = { viewModel.switchCamera() },
+                onToggleFlashlight = { viewModel.toggleFlashlight() },
+                onCheckRecordingTime = { viewModel.checkRecordingTime() },
+                onCheckLocation = { viewModel.checkLocation() },
+                onCloseApp = { viewModel.testTextCommand("关闭应用") },
                 onEmergencyCall = { viewModel.testTextCommand("紧急呼叫") }
             )
 
