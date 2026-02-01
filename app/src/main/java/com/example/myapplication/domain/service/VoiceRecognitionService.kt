@@ -66,6 +66,8 @@ class VoiceRecognitionService(
     private var fallbackToEnglish = false // 是否已降级到英文
     private var testRecognizer: SpeechRecognizer? = null // 测试用识别器
     private var isTesting = false // 是否正在测试
+    private var consecutiveErrors = 0 // 连续错误计数
+    private val MAX_CONSECUTIVE_ERRORS = 5 // 最大连续错误次数
 
     private fun createRecognitionIntent(): Intent {
         return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -105,6 +107,7 @@ class VoiceRecognitionService(
                 override fun onReadyForSpeech(params: Bundle?) {
                     Log.d(TAG, "准备好接收语音")
                     isListening = true
+                    consecutiveErrors = 0 // 成功启动，重置错误计数
                     onDebugInfo?.invoke(VoiceDebugInfo(
                         text = "准备接收语音...",
                         isPartial = false,
@@ -178,6 +181,7 @@ class VoiceRecognitionService(
                     Log.e(TAG, "错误码: $error")
                     Log.e(TAG, "错误描述: $errorMessage")
                     Log.e(TAG, "当前语言: $currentLanguage")
+                    Log.e(TAG, "连续错误次数: $consecutiveErrors")
                     Log.e(TAG, "========================================")
                     isListening = false
 
@@ -189,11 +193,46 @@ class VoiceRecognitionService(
                         error = errorMessage
                     ))
 
+                    // 增加连续错误计数
+                    consecutiveErrors++
+
+                    // 检查是否超过最大错误次数
+                    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                        Log.e(TAG, "⚠️ 连续错误过多(${consecutiveErrors}次)，暂停自动重启10秒")
+                        shouldRestart = false
+
+                        // 10秒后重置并允许重启
+                        CoroutineScope(Dispatchers.Main).launch {
+                            delay(10000)
+                            consecutiveErrors = 0
+                            shouldRestart = true
+                            Log.d(TAG, "✓ 错误计数已重置，恢复自动重启")
+                        }
+                        return
+                    }
+
                     // 自动重启监听
                     if (shouldRestart) {
+                        // 根据错误类型决定延迟时间
+                        val delayTime = when (error) {
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
+                                Log.w(TAG, "识别器忙碌，彻底重新初始化...")
+                                // 先彻底清理
+                                speechRecognizer?.destroy()
+                                speechRecognizer = null
+                                3000L // 识别器忙碌时等待3秒
+                            }
+                            SpeechRecognizer.ERROR_CLIENT -> {
+                                // 客户端错误时等待2秒
+                                2000L
+                            }
+                            else -> 1000L // 其他错误等待1秒
+                        }
+
                         CoroutineScope(Dispatchers.Main).launch {
-                            delay(1000) // 等待1秒后重启
+                            delay(delayTime)
                             if (shouldRestart) {
+                                Log.d(TAG, "尝试重新启动识别器...")
                                 startListening()
                             }
                         }
