@@ -55,6 +55,7 @@ fun DebugDrawer(
     onCheckRecordingTime: () -> Unit,
     onCheckLocation: () -> Unit,
     onCloseApp: () -> Unit,
+    onClearRecordings: () -> Unit,
     onEmergencyCall: () -> Unit
 ) {
     AnimatedVisibility(
@@ -143,6 +144,7 @@ fun DebugDrawer(
                             onCheckRecordingTime = onCheckRecordingTime,
                             onCheckLocation = onCheckLocation,
                             onCloseApp = onCloseApp,
+                            onClearRecordings = onClearRecordings,
                             onEmergencyCall = onEmergencyCall
                         )
 
@@ -298,6 +300,7 @@ private fun UserFunctionSection(
     onCheckRecordingTime: () -> Unit,
     onCheckLocation: () -> Unit,
     onCloseApp: () -> Unit,
+    onClearRecordings: () -> Unit,
     onEmergencyCall: () -> Unit
 ) {
     Column {
@@ -438,6 +441,20 @@ private fun UserFunctionSection(
                     Text("关闭应用", fontSize = 12.sp)
                 }
             }
+
+            // 第7行：清空录像（全宽）
+            Button(
+                onClick = onClearRecordings,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    contentColor = MaterialTheme.colorScheme.onSecondary
+                )
+            ) {
+                Text("清空录像", fontSize = 14.sp)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 紧急呼叫按钮 - 使用红色突出显示
             Button(

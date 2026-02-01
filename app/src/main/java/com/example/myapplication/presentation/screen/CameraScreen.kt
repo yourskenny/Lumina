@@ -124,7 +124,7 @@ fun CameraScreen(
                 onClick = { isDrawerOpen = true },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 120.dp)
+                    .padding(end = 16.dp, bottom = 16.dp)
             )
 
             // 调试抽屉
@@ -158,25 +158,8 @@ fun CameraScreen(
                 onCheckRecordingTime = { viewModel.checkRecordingTime() },
                 onCheckLocation = { viewModel.checkLocation() },
                 onCloseApp = { viewModel.testTextCommand("关闭应用") },
+                onClearRecordings = { viewModel.clearAllRecordings() },
                 onEmergencyCall = { viewModel.testTextCommand("紧急呼叫") }
-            )
-
-            // 底部控制按钮
-            ControlButtons(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(32.dp),
-                isRecording = uiState.cameraState is CameraState.Recording,
-                isPaused = uiState.cameraState is CameraState.Paused,
-                onCapturePhoto = { viewModel.capturePhotoWhileRecording() },
-                onPauseResume = {
-                    if (uiState.cameraState is CameraState.Recording) {
-                        viewModel.pauseRecording()
-                    } else {
-                        viewModel.resumeRecording()
-                    }
-                },
-                onClearRecordings = { viewModel.clearAllRecordings() }
             )
         }
     }
