@@ -149,7 +149,8 @@ fun CameraScreen(
                 onTakePhoto = { viewModel.testTextCommand("拍照") },
                 onCheckBattery = { viewModel.testTextCommand("查询电池") },
                 onPauseRecording = { viewModel.testTextCommand("暂停录像") },
-                onResumeRecording = { viewModel.testTextCommand("继续录像") }
+                onResumeRecording = { viewModel.testTextCommand("继续录像") },
+                onEmergencyCall = { viewModel.testTextCommand("紧急呼叫") }
             )
 
             // 底部控制按钮

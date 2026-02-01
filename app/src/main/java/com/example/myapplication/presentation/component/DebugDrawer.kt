@@ -46,7 +46,8 @@ fun DebugDrawer(
     onTakePhoto: () -> Unit,
     onCheckBattery: () -> Unit,
     onPauseRecording: () -> Unit,
-    onResumeRecording: () -> Unit
+    onResumeRecording: () -> Unit,
+    onEmergencyCall: () -> Unit
 ) {
     AnimatedVisibility(
         visible = isVisible,
@@ -125,7 +126,8 @@ fun DebugDrawer(
                             onTakePhoto = onTakePhoto,
                             onCheckBattery = onCheckBattery,
                             onPauseRecording = onPauseRecording,
-                            onResumeRecording = onResumeRecording
+                            onResumeRecording = onResumeRecording,
+                            onEmergencyCall = onEmergencyCall
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -271,7 +273,8 @@ private fun UserFunctionSection(
     onTakePhoto: () -> Unit,
     onCheckBattery: () -> Unit,
     onPauseRecording: () -> Unit,
-    onResumeRecording: () -> Unit
+    onResumeRecording: () -> Unit,
+    onEmergencyCall: () -> Unit
 ) {
     Column {
         Row(
@@ -332,6 +335,18 @@ private fun UserFunctionSection(
                 ) {
                     Text("继续录像")
                 }
+            }
+
+            // 紧急呼叫按钮 - 使用红色突出显示
+            Button(
+                onClick = onEmergencyCall,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                )
+            ) {
+                Text("🚨 紧急呼叫", fontSize = 16.sp)
             }
         }
     }
