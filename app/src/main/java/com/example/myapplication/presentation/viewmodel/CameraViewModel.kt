@@ -23,6 +23,7 @@ import com.example.myapplication.domain.service.TextToSpeechService
 import com.example.myapplication.domain.service.VoiceCommand
 import com.example.myapplication.domain.service.VoiceRecognitionService
 import com.example.myapplication.domain.service.VoiceDebugInfo
+import com.example.myapplication.domain.service.AudioRecordingService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +47,10 @@ data class CameraUiState(
     val currentLanguage: String = "中文",       // 当前识别语言
     val isRecognitionTesting: Boolean = false,  // 是否正在测试识别
     val showTextInput: Boolean = true,          // 是否显示文本输入（调试用）
-    val testCommandResult: String? = null       // 命令测试结果
+    val testCommandResult: String? = null,      // 命令测试结果
+    val isAudioRecording: Boolean = false,      // 是否正在录音
+    val audioRecordingFile: String? = null,     // 当前录音文件路径
+    val audioRecordingCount: Int = 0            // 录音文件总数
 )
 
 /**
@@ -78,6 +82,9 @@ class CameraViewModel(
     // 麦克风测试工具
     private var microphoneTest: MicrophoneTest? = null
 
+    // 音频录制服务
+    private val audioRecordingService = AudioRecordingService(context)
+
     init {
         // 监听相机状态变化
         viewModelScope.launch {
@@ -99,6 +106,9 @@ class CameraViewModel(
         } else {
             Log.w(TAG, "缺少GPS定位权限，位置跟踪未启动")
         }
+
+        // 更新录音文件计数
+        updateAudioRecordingCount()
     }
 
     /**
@@ -756,6 +766,103 @@ class CameraViewModel(
     }
 
     /**
+     * 开始录音（同时进行语音识别）
+     */
+    fun startAudioRecording() {
+        if (_uiState.value.isAudioRecording) {
+            Log.w(TAG, "已经在录音中")
+            ttsService.speak("已经在录音中")
+            return
+        }
+
+        val filePath = audioRecordingService.startRecording()
+        if (filePath != null) {
+            _uiState.value = _uiState.value.copy(
+                isAudioRecording = true,
+                audioRecordingFile = filePath
+            )
+            ttsService.speak("开始录音")
+            hapticService.feedbackSuccess()
+            Log.d(TAG, "开始录音: $filePath")
+        } else {
+            _uiState.value = _uiState.value.copy(isAudioRecording = false)
+            ttsService.speak("录音启动失败", urgent = true)
+            hapticService.feedbackError()
+            Log.e(TAG, "录音启动失败")
+        }
+    }
+
+    /**
+     * 停止录音
+     */
+    fun stopAudioRecording() {
+        if (!_uiState.value.isAudioRecording) {
+            Log.w(TAG, "当前没有在录音")
+            ttsService.speak("当前没有在录音")
+            return
+        }
+
+        val filePath = audioRecordingService.stopRecording()
+        if (filePath != null) {
+            _uiState.value = _uiState.value.copy(
+                isAudioRecording = false,
+                audioRecordingFile = null
+            )
+            ttsService.speak("录音已保存")
+            hapticService.feedbackSuccess()
+            Log.d(TAG, "录音已保存: $filePath")
+
+            // 更新录音文件计数
+            updateAudioRecordingCount()
+        } else {
+            _uiState.value = _uiState.value.copy(isAudioRecording = false)
+            ttsService.speak("录音保存失败", urgent = true)
+            hapticService.feedbackError()
+            Log.e(TAG, "录音保存失败")
+        }
+    }
+
+    /**
+     * 切换录音状态（开始/停止）
+     */
+    fun toggleAudioRecording() {
+        if (_uiState.value.isAudioRecording) {
+            stopAudioRecording()
+        } else {
+            startAudioRecording()
+        }
+    }
+
+    /**
+     * 更新录音文件计数
+     */
+    private fun updateAudioRecordingCount() {
+        val count = audioRecordingService.getAllRecordings().size
+        _uiState.value = _uiState.value.copy(audioRecordingCount = count)
+        Log.d(TAG, "录音文件总数: $count")
+    }
+
+    /**
+     * 获取所有录音文件
+     */
+    fun getAllAudioRecordings(): List<String> {
+        return audioRecordingService.getAllRecordings().map { it.absolutePath }
+    }
+
+    /**
+     * 清空所有录音文件
+     */
+    fun clearAllAudioRecordings() {
+        val count = audioRecordingService.clearAllRecordings()
+        ttsService.speak("已清空 $count 个录音文件")
+        hapticService.feedbackSuccess()
+        Log.d(TAG, "已清空 $count 个录音文件")
+
+        // 更新录音文件计数
+        updateAudioRecordingCount()
+    }
+
+    /**
      * 清理资源
      */
     override fun onCleared() {
@@ -764,6 +871,7 @@ class CameraViewModel(
         voiceService.release()
         ttsService.shutdown()
         locationRepository.release()
+        audioRecordingService.release()
         Log.d(TAG, "ViewModel资源已释放")
     }
 }

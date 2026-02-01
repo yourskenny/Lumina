@@ -227,18 +227,25 @@ class MainActivity : ComponentActivity() {
      */
     private fun startForegroundService() {
         if (!isForegroundServiceRunning) {
-            val intent = Intent(this, CameraForegroundService::class.java).apply {
-                action = CameraForegroundService.ACTION_START_FOREGROUND
-                putExtra(CameraForegroundService.EXTRA_STATUS_TEXT, "录像运行中")
-            }
+            try {
+                val intent = Intent(this, CameraForegroundService::class.java).apply {
+                    action = CameraForegroundService.ACTION_START_FOREGROUND
+                    putExtra(CameraForegroundService.EXTRA_STATUS_TEXT, "录像运行中")
+                }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ContextCompat.startForegroundService(this, intent)
-            } else {
-                startService(intent)
-            }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    ContextCompat.startForegroundService(this, intent)
+                } else {
+                    startService(intent)
+                }
 
-            isForegroundServiceRunning = true
+                isForegroundServiceRunning = true
+                Log.d(TAG, "前台服务启动成功")
+            } catch (e: Exception) {
+                Log.w(TAG, "前台服务启动失败（这不会影响应用功能）: ${e.message}")
+                // 不影响应用继续运行，前台服务只是为了保持后台录像
+                isForegroundServiceRunning = false
+            }
         }
     }
 

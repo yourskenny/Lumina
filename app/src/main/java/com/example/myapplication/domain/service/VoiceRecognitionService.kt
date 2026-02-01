@@ -61,7 +61,9 @@ class VoiceRecognitionService(
     private var isListening = false
     private var shouldRestart = true // 是否自动重启监听
     private var currentVolume = 0f   // 当前音量
-    private var currentLanguage = "en-US" // 当前语言：zh-CN(中文) 或 en-US(英文) - 默认英文更可靠
+    private var currentLanguage = "zh-CN" // 当前语言：zh-CN(中文) 或 en-US(英文) - 默认中文
+    private var languagePackError = false // 语言包是否出错
+    private var fallbackToEnglish = false // 是否已降级到英文
 
     private fun createRecognitionIntent(): Intent {
         return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -153,6 +155,22 @@ class VoiceRecognitionService(
                         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "语音超时（未检测到声音）"
                         else -> "未知错误: $error"
                     }
+
+                    // 检测是否为语言包错误（客户端错误通常表示语言包不可用）
+                    if (error == SpeechRecognizer.ERROR_CLIENT && currentLanguage == "zh-CN" && !fallbackToEnglish) {
+                        Log.w(TAG, "检测到中文语言包不可用，自动切换到英文")
+                        fallbackToEnglish = true
+                        currentLanguage = "en-US"
+
+                        onDebugInfo?.invoke(VoiceDebugInfo(
+                            text = "中文语言包不可用，已切换到英文",
+                            isPartial = false,
+                            volume = 0f,
+                            isListening = false,
+                            error = "语言包切换"
+                        ))
+                    }
+
                     Log.e(TAG, "========================================")
                     Log.e(TAG, "语音识别错误")
                     Log.e(TAG, "错误码: $error")
@@ -383,7 +401,8 @@ class VoiceRecognitionService(
      * 获取当前语言
      */
     fun getCurrentLanguage(): String {
-        return if (currentLanguage == "zh-CN") "中文" else "英文"
+        val langName = if (currentLanguage == "zh-CN") "中文" else "英文"
+        return if (fallbackToEnglish) "$langName(自动降级)" else langName
     }
 
     /**
@@ -394,6 +413,10 @@ class VoiceRecognitionService(
         Log.d(TAG, "开始极简化识别测试")
         Log.d(TAG, "使用最基本的配置，无额外参数")
         Log.d(TAG, "======================================")
+
+        // 先停止主识别器，避免冲突
+        speechRecognizer?.stopListening()
+        shouldRestart = false
 
         val simpleIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -461,7 +484,10 @@ class VoiceRecognitionService(
     fun testRecognition(onResult: (String?) -> Unit) {
         Log.d(TAG, "开始一次性识别测试")
 
+        // 先停止主识别器，避免冲突
+        speechRecognizer?.stopListening()
         shouldRestart = false  // 不自动重启
+
         val intent = createRecognitionIntent()
 
         onDebugInfo?.invoke(VoiceDebugInfo(

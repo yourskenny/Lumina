@@ -130,11 +130,15 @@ fun CameraScreen(
                 currentLanguage = uiState.currentLanguage,
                 isRecognitionTesting = uiState.isRecognitionTesting,
                 testCommandResult = uiState.testCommandResult,
+                isAudioRecording = uiState.isAudioRecording,
+                audioRecordingCount = uiState.audioRecordingCount,
                 onTestMicrophone = { viewModel.testMicrophone() },
                 onSwitchLanguage = { viewModel.switchVoiceLanguage() },
                 onTestRecognition = { viewModel.testRecognition() },
                 onTestSimpleRecognition = { viewModel.testSimpleRecognition() },
-                onTestCommand = { text -> viewModel.testTextCommand(text) }
+                onTestCommand = { text -> viewModel.testTextCommand(text) },
+                onToggleAudioRecording = { viewModel.toggleAudioRecording() },
+                onClearAudioRecordings = { viewModel.clearAllAudioRecordings() }
             )
 
             // 底部控制按钮
@@ -285,11 +289,15 @@ fun VoiceDebugOverlay(
     currentLanguage: String,
     isRecognitionTesting: Boolean,
     testCommandResult: String?,
+    isAudioRecording: Boolean,
+    audioRecordingCount: Int,
     onTestMicrophone: () -> Unit,
     onSwitchLanguage: () -> Unit,
     onTestRecognition: () -> Unit,
     onTestSimpleRecognition: () -> Unit,
-    onTestCommand: (String) -> Unit
+    onTestCommand: (String) -> Unit,
+    onToggleAudioRecording: () -> Unit,
+    onClearAudioRecordings: () -> Unit
 ) {
     // 总是显示调试面板（因为有按钮）
     // if (voiceText.isEmpty() && error == null && !isListening && micTestResult == null && !isMicTesting) {
@@ -394,6 +402,33 @@ fun VoiceDebugOverlay(
             style = MaterialTheme.typography.bodyMedium
         )
 
+        // 录音状态显示
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (isAudioRecording) "🔴 正在录音" else "⚫ 未录音",
+                fontSize = 16.sp,
+                color = if (isAudioRecording)
+                    MaterialTheme.colorScheme.error
+                else
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Text(
+                text = "录音文件: $audioRecordingCount",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
         // 按钮区域
         Spacer(modifier = Modifier.height(8.dp))
         Row(
@@ -436,6 +471,28 @@ fun VoiceDebugOverlay(
                 onClick = onTestSimpleRecognition,
                 contentDescriptionText = "使用最简配置测试识别",
                 enabled = !isMicTesting && !isRecognitionTesting
+            )
+        }
+
+        // 录音控制按钮
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            // 开始/停止录音按钮
+            AccessibleButton(
+                text = if (isAudioRecording) "⏹ 停止录音" else "🎙 开始录音",
+                onClick = onToggleAudioRecording,
+                contentDescriptionText = if (isAudioRecording) "停止录音并保存" else "开始录音（同时识别）"
+            )
+
+            // 清空录音按钮
+            AccessibleButton(
+                text = "清空录音",
+                onClick = onClearAudioRecordings,
+                contentDescriptionText = "清空所有录音文件",
+                enabled = audioRecordingCount > 0
             )
         }
 
