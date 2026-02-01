@@ -143,8 +143,9 @@ class VoiceRecognitionService(
                 }
 
                 override fun onEndOfSpeech() {
-                    Log.d(TAG, "结束说话")
-                    isListening = false
+                    Log.d(TAG, "结束说话 - 等待识别结果...")
+                    // 不在这里设置isListening = false，让onResults或onError来设置
+                    // 避免状态不一致
                 }
 
                 override fun onError(error: Int) {
@@ -193,8 +194,19 @@ class VoiceRecognitionService(
                         error = errorMessage
                     ))
 
-                    // 增加连续错误计数
-                    consecutiveErrors++
+                    // 根据错误类型决定是否增加错误计数
+                    // ERROR_NO_MATCH 和 ERROR_SPEECH_TIMEOUT 不算严重错误
+                    val isSeriousError = error !in listOf(
+                        SpeechRecognizer.ERROR_NO_MATCH,
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                    )
+
+                    if (isSeriousError) {
+                        consecutiveErrors++
+                        Log.e(TAG, "严重错误，计数: $consecutiveErrors")
+                    } else {
+                        Log.d(TAG, "非严重错误（无匹配/超时），不计入错误次数")
+                    }
 
                     // 检查是否超过最大错误次数
                     if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
@@ -223,8 +235,11 @@ class VoiceRecognitionService(
                                 3000L // 识别器忙碌时等待3秒
                             }
                             SpeechRecognizer.ERROR_CLIENT -> {
-                                // 客户端错误时等待2秒
-                                2000L
+                                2000L // 客户端错误时等待2秒
+                            }
+                            SpeechRecognizer.ERROR_NO_MATCH,
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
+                                200L // 无匹配/超时快速重启，保持连续监听
                             }
                             else -> 1000L // 其他错误等待1秒
                         }
@@ -232,7 +247,7 @@ class VoiceRecognitionService(
                         CoroutineScope(Dispatchers.Main).launch {
                             delay(delayTime)
                             if (shouldRestart) {
-                                Log.d(TAG, "尝试重新启动识别器...")
+                                Log.d(TAG, "🔄 尝试重新启动识别器...")
                                 startListening()
                             }
                         }
@@ -248,17 +263,21 @@ class VoiceRecognitionService(
                             text = "✓ $text",
                             isPartial = false,
                             volume = currentVolume,
-                            isListening = true
+                            isListening = false  // 识别完成，设置为false
                         ))
 
                         processCommand(text)
                     }
 
-                    // 自动重启监听
+                    // 关键修复：识别完成后，立即设置为false以允许重启
+                    isListening = false
+
+                    // 自动重启监听 - 缩短延迟以实现连续监听
                     if (shouldRestart) {
                         CoroutineScope(Dispatchers.Main).launch {
-                            delay(500)
+                            delay(200)  // 减少延迟从500ms到200ms
                             if (shouldRestart) {
+                                Log.d(TAG, "🔄 自动重启监听...")
                                 startListening()
                             }
                         }
@@ -541,14 +560,20 @@ class VoiceRecognitionService(
      */
     fun startListening() {
         if (isListening) {
-            Log.d(TAG, "已在监听中")
+            Log.w(TAG, "⚠️ 已在监听中，跳过重启 (isListening=$isListening)")
             return
+        }
+
+        // 如果识别器为null，重新初始化
+        if (speechRecognizer == null) {
+            Log.d(TAG, "识别器为null，重新初始化...")
+            initializeSpeechRecognizer()
         }
 
         shouldRestart = true
         val intent = createRecognitionIntent()
         speechRecognizer?.startListening(intent)
-        Log.d(TAG, "开始监听语音命令 - 语言: $currentLanguage")
+        Log.d(TAG, "✓ 开始监听语音命令 - 语言: $currentLanguage (isListening将在onReadyForSpeech时设为true)")
     }
 
     /**
