@@ -24,6 +24,9 @@ import com.example.myapplication.domain.service.VoiceCommand
 import com.example.myapplication.domain.service.VoiceRecognitionService
 import com.example.myapplication.domain.service.VoiceDebugInfo
 import com.example.myapplication.domain.service.AudioRecordingService
+import com.example.myapplication.domain.detector.ObjectDetector
+import com.example.myapplication.data.model.RawObject
+import android.graphics.BitmapFactory
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,7 +53,12 @@ data class CameraUiState(
     val testCommandResult: String? = null,      // 命令测试结果
     val isAudioRecording: Boolean = false,      // 是否正在录音
     val audioRecordingFile: String? = null,     // 当前录音文件路径
-    val audioRecordingCount: Int = 0            // 录音文件总数
+    val audioRecordingCount: Int = 0,           // 录音文件总数
+    // AI 检测相关
+    val isRealtimeAnalysisEnabled: Boolean = false, // 是否启用实时AI分析
+    val analysisResult: String? = null,         // AI分析结果描述
+    val detectedHazards: List<RawObject> = emptyList(), // 检测到的危险对象
+    val detectedPaths: List<RawObject> = emptyList()    // 检测到的路径
 )
 
 /**
@@ -84,6 +92,9 @@ class CameraViewModel(
 
     // 音频录制服务
     private val audioRecordingService = AudioRecordingService(context)
+
+    // AI 对象检测器
+    private val objectDetector = ObjectDetector(context)
 
     init {
         // 监听相机状态变化
@@ -317,6 +328,9 @@ class CameraViewModel(
                 ttsService.speak("咔嚓,照片已保存")
                 hapticService.feedbackCapture()
                 Log.d(TAG, "照片已保存: ${outputFile.absolutePath}")
+
+                // AI 分析照片
+                performAIAnalysis(outputFile)
             },
             onError = { exception ->
                 val message = "拍照失败: ${exception.message}"
@@ -325,6 +339,82 @@ class CameraViewModel(
                 Log.e(TAG, message)
             }
         )
+    }
+
+    /**
+     * 执行 AI 物体检测分析
+     */
+    private fun performAIAnalysis(file: java.io.File) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "🤖 开始AI分析: ${file.absolutePath}")
+
+                // 1. 加载图片
+                val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+                if (bitmap == null) {
+                    Log.e(TAG, "无法加载图片进行分析")
+                    return@launch
+                }
+
+                // 2. 执行 ONNX 推理
+                val result = objectDetector.detect(bitmap)
+
+                Log.d(TAG, "✅ AI检测完成: ${result.hazards.size} 个危险, ${result.paths.size} 个路径")
+
+                // 3. 分析结果并生成状态描述
+                var state = "SAFE"
+                var summary = "Path is clear"
+
+                var nearestHazardDist = 999.0
+                var nearestHazardName = ""
+                var nearestHazardDir = ""
+
+                // 查找最近的危险
+                for (hazard in result.hazards) {
+                    if (hazard.distanceM < nearestHazardDist) {
+                        nearestHazardDist = hazard.distanceM
+                        nearestHazardName = hazard.name
+                        nearestHazardDir = hazard.direction
+                    }
+                }
+
+                // 根据距离判断危险等级
+                if (nearestHazardDist < 1.5) {
+                    state = "DANGER"
+                    summary = "STOP! $nearestHazardName ahead"
+                    hapticService.feedbackError()
+                    ttsService.speak("Warning. $nearestHazardName $nearestHazardDir. ${String.format("%.1f", nearestHazardDist)} meters.", urgent = true)
+                } else if (nearestHazardDist < 3.0) {
+                    state = "CAUTION"
+                    summary = "$nearestHazardName detected at ${String.format("%.1f", nearestHazardDist)}m"
+                    hapticService.feedbackWarning()
+                    ttsService.speak("Caution. $nearestHazardName $nearestHazardDir. ${String.format("%.1f", nearestHazardDist)} meters.")
+                } else if (result.paths.isNotEmpty()) {
+                    state = "SAFE"
+                    val path = result.paths[0]
+                    summary = "Follow ${path.name} ${path.direction}"
+                    ttsService.speak("${path.name} detected ${path.direction}")
+                }
+
+                // 4. 更新 UI 状态
+                _uiState.value = _uiState.value.copy(
+                    analysisResult = "$state: $summary",
+                    detectedHazards = result.hazards,
+                    detectedPaths = result.paths
+                )
+
+                Log.d(TAG, "📊 分析结果: $state - $summary")
+
+                // 清理 bitmap
+                bitmap.recycle()
+
+            } catch (e: Exception) {
+                Log.e(TAG, "AI分析失败", e)
+                _uiState.value = _uiState.value.copy(
+                    analysisResult = "Analysis failed: ${e.message}"
+                )
+            }
+        }
     }
 
     /**
@@ -872,6 +962,7 @@ class CameraViewModel(
         ttsService.shutdown()
         locationRepository.release()
         audioRecordingService.release()
+        objectDetector.close()
         Log.d(TAG, "ViewModel资源已释放")
     }
 }

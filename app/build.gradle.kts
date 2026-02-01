@@ -58,6 +58,9 @@ dependencies {
     // ViewModel
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
+    // ONNX Runtime for AI Object Detection
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.17.0")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
