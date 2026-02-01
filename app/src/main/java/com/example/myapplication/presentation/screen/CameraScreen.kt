@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.sp
 import com.example.myapplication.data.model.CameraState
 import com.example.myapplication.presentation.component.AccessibleButton
 import com.example.myapplication.presentation.component.CameraPreview
+import com.example.myapplication.presentation.component.DebugDrawer
+import com.example.myapplication.presentation.component.DebugFab
 import com.example.myapplication.presentation.viewmodel.CameraViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -54,6 +56,7 @@ fun CameraScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
+    var isDrawerOpen by remember { mutableStateOf(false) }
 
     // 请求必要的权限
     val permissionsState = rememberMultiplePermissionsState(
@@ -116,29 +119,37 @@ fun CameraScreen(
                 totalSegments = uiState.recordingStats.totalSegments
             )
 
-            // 语音识别调试面板（底部中间，往上移动）
-            VoiceDebugOverlay(
+            // 右下角浮动按钮 - 打开控制面板
+            DebugFab(
+                onClick = { isDrawerOpen = true },
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 200.dp),
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 120.dp)
+            )
+
+            // 调试抽屉
+            DebugDrawer(
+                isVisible = isDrawerOpen,
+                onDismiss = { isDrawerOpen = false },
                 voiceText = uiState.voiceDebugText,
                 volume = uiState.voiceVolume,
                 isListening = uiState.isVoiceListening,
-                error = uiState.voiceError,
-                micTestResult = uiState.micTestResult,
-                isMicTesting = uiState.isMicTesting,
+                voiceError = uiState.voiceError,
                 currentLanguage = uiState.currentLanguage,
-                isRecognitionTesting = uiState.isRecognitionTesting,
-                testCommandResult = uiState.testCommandResult,
                 isAudioRecording = uiState.isAudioRecording,
                 audioRecordingCount = uiState.audioRecordingCount,
+                // 开发者测试按钮
                 onTestMicrophone = { viewModel.testMicrophone() },
                 onSwitchLanguage = { viewModel.switchVoiceLanguage() },
                 onTestRecognition = { viewModel.testRecognition() },
                 onTestSimpleRecognition = { viewModel.testSimpleRecognition() },
-                onTestCommand = { text -> viewModel.testTextCommand(text) },
                 onToggleAudioRecording = { viewModel.toggleAudioRecording() },
-                onClearAudioRecordings = { viewModel.clearAllAudioRecordings() }
+                onClearAudioRecordings = { viewModel.clearAllAudioRecordings() },
+                // 用户功能按钮
+                onTakePhoto = { viewModel.testTextCommand("拍照") },
+                onCheckBattery = { viewModel.testTextCommand("查询电池") },
+                onPauseRecording = { viewModel.testTextCommand("暂停录像") },
+                onResumeRecording = { viewModel.testTextCommand("继续录像") }
             )
 
             // 底部控制按钮
