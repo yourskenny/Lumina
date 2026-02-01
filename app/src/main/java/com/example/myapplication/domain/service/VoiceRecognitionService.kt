@@ -296,58 +296,109 @@ class VoiceRecognitionService(
         Log.d(TAG, "小写文本: $lowerText")
 
         val command = when {
-            lowerText.contains("拍照") || lowerText.contains("拍一张") || lowerText.contains("照相") -> {
+            // 拍照 - Take photo
+            lowerText.contains("拍照") || lowerText.contains("拍一张") || lowerText.contains("照相") ||
+                    lowerText.contains("take photo") || lowerText.contains("take picture") ||
+                    lowerText.contains("capture") || lowerText.contains("photo") -> {
                 VoiceCommand.CAPTURE_PHOTO
             }
-            lowerText.contains("暂停") && (lowerText.contains("录像") || lowerText.contains("录制")) -> {
+            // 暂停录像 - Pause recording
+            (lowerText.contains("暂停") && (lowerText.contains("录像") || lowerText.contains("录制"))) ||
+                    (lowerText.contains("pause") && (lowerText.contains("recording") || lowerText.contains("video"))) ||
+                    lowerText.contains("pause recording") -> {
                 VoiceCommand.PAUSE_RECORDING
             }
-            (lowerText.contains("继续") || lowerText.contains("开始") || lowerText.contains("恢复")) &&
-                    (lowerText.contains("录像") || lowerText.contains("录制")) -> {
+            // 继续录像 - Resume recording
+            ((lowerText.contains("继续") || lowerText.contains("开始") || lowerText.contains("恢复")) &&
+                    (lowerText.contains("录像") || lowerText.contains("录制"))) ||
+                    ((lowerText.contains("resume") || lowerText.contains("continue") || lowerText.contains("start")) &&
+                            (lowerText.contains("recording") || lowerText.contains("video"))) ||
+                    lowerText.contains("resume recording") || lowerText.contains("continue recording") -> {
                 VoiceCommand.RESUME_RECORDING
             }
-            (lowerText.contains("播放") || lowerText.contains("查看") || lowerText.contains("打开")) &&
-                    (lowerText.contains("视频") || lowerText.contains("录像") || lowerText.contains("最新")) -> {
+            // 播放视频 - Play video
+            ((lowerText.contains("播放") || lowerText.contains("查看") || lowerText.contains("打开")) &&
+                    (lowerText.contains("视频") || lowerText.contains("录像") || lowerText.contains("最新"))) ||
+                    (lowerText.contains("play") && (lowerText.contains("video") || lowerText.contains("latest"))) ||
+                    lowerText.contains("play video") || lowerText.contains("play latest") -> {
                 VoiceCommand.PLAY_VIDEO
             }
-            (lowerText.contains("分享") || lowerText.contains("发送")) &&
-                    (lowerText.contains("视频") || lowerText.contains("录像") || lowerText.contains("最新")) -> {
+            // 分享视频 - Share video
+            ((lowerText.contains("分享") || lowerText.contains("发送")) &&
+                    (lowerText.contains("视频") || lowerText.contains("录像") || lowerText.contains("最新"))) ||
+                    (lowerText.contains("share") && (lowerText.contains("video") || lowerText.contains("latest"))) ||
+                    lowerText.contains("share video") || lowerText.contains("send video") -> {
                 VoiceCommand.SHARE_VIDEO
             }
-            (lowerText.contains("切换") || lowerText.contains("转换")) &&
-                    (lowerText.contains("摄像头") || lowerText.contains("相机") || lowerText.contains("镜头")) -> {
+            // 切换摄像头 - Switch camera
+            ((lowerText.contains("切换") || lowerText.contains("转换")) &&
+                    (lowerText.contains("摄像头") || lowerText.contains("相机") || lowerText.contains("镜头"))) ||
+                    (lowerText.contains("switch") && lowerText.contains("camera")) ||
+                    lowerText.contains("switch camera") || lowerText.contains("flip camera") -> {
                 VoiceCommand.SWITCH_CAMERA
             }
-            (lowerText.contains("打开") || lowerText.contains("关闭") || lowerText.contains("切换")) &&
-                    (lowerText.contains("闪光灯") || lowerText.contains("手电筒") || lowerText.contains("补光")) -> {
+            // 切换闪光灯 - Toggle flashlight
+            ((lowerText.contains("打开") || lowerText.contains("关闭") || lowerText.contains("切换")) &&
+                    (lowerText.contains("闪光灯") || lowerText.contains("手电筒") || lowerText.contains("补光"))) ||
+                    (lowerText.contains("flash") || lowerText.contains("flashlight") || lowerText.contains("torch")) ||
+                    lowerText.contains("toggle flash") || lowerText.contains("turn on flash") ||
+                    lowerText.contains("turn off flash") -> {
                 VoiceCommand.TOGGLE_FLASHLIGHT
             }
-            (lowerText.contains("查询") || lowerText.contains("检查") || lowerText.contains("查看")) &&
-                    (lowerText.contains("存储") || lowerText.contains("空间") || lowerText.contains("内存")) -> {
+            // 查询存储 - Check storage
+            ((lowerText.contains("查询") || lowerText.contains("检查") || lowerText.contains("查看")) &&
+                    (lowerText.contains("存储") || lowerText.contains("空间") || lowerText.contains("内存"))) ||
+                    ((lowerText.contains("check") || lowerText.contains("show")) &&
+                            (lowerText.contains("storage") || lowerText.contains("space") || lowerText.contains("memory"))) ||
+                    lowerText.contains("check storage") || lowerText.contains("storage info") -> {
                 VoiceCommand.CHECK_STORAGE
             }
-            (lowerText.contains("查询") || lowerText.contains("检查") || lowerText.contains("查看")) &&
-                    (lowerText.contains("电池") || lowerText.contains("电量") || lowerText.contains("充电")) -> {
+            // 查询电池 - Check battery
+            ((lowerText.contains("查询") || lowerText.contains("检查") || lowerText.contains("查看")) &&
+                    (lowerText.contains("电池") || lowerText.contains("电量") || lowerText.contains("充电"))) ||
+                    ((lowerText.contains("check") || lowerText.contains("show")) &&
+                            (lowerText.contains("battery") || lowerText.contains("power"))) ||
+                    lowerText.contains("check battery") || lowerText.contains("battery level") -> {
                 VoiceCommand.CHECK_BATTERY
             }
-            (lowerText.contains("查询") || lowerText.contains("查看")) &&
-                    (lowerText.contains("录像时长") || lowerText.contains("录了多久") || lowerText.contains("时长")) -> {
+            // 查询录像时长 - Check recording time
+            ((lowerText.contains("查询") || lowerText.contains("查看")) &&
+                    (lowerText.contains("录像时长") || lowerText.contains("录了多久") || lowerText.contains("时长"))) ||
+                    ((lowerText.contains("check") || lowerText.contains("show")) &&
+                            (lowerText.contains("recording time") || lowerText.contains("duration"))) ||
+                    lowerText.contains("how long") || lowerText.contains("check time") -> {
                 VoiceCommand.CHECK_RECORDING_TIME
             }
-            (lowerText.contains("查询") || lowerText.contains("查看") || lowerText.contains("检查")) &&
+            // 查询位置 - Check location
+            ((lowerText.contains("查询") || lowerText.contains("查看") || lowerText.contains("检查")) &&
                     (lowerText.contains("位置") || lowerText.contains("定位") || lowerText.contains("GPS") ||
-                            lowerText.contains("坐标") || lowerText.contains("在哪") || lowerText.contains("地点")) -> {
+                            lowerText.contains("坐标") || lowerText.contains("在哪") || lowerText.contains("地点"))) ||
+                    ((lowerText.contains("check") || lowerText.contains("show") || lowerText.contains("where")) &&
+                            (lowerText.contains("location") || lowerText.contains("gps") || lowerText.contains("position"))) ||
+                    lowerText.contains("check location") || lowerText.contains("my location") ||
+                    lowerText.contains("where am i") -> {
                 VoiceCommand.CHECK_LOCATION
             }
-            (lowerText.contains("紧急") || lowerText.contains("求助") || lowerText.contains("帮助")) &&
-                    (lowerText.contains("呼叫") || lowerText.contains("电话") || lowerText.contains("联系")) -> {
+            // 紧急呼叫 - Emergency call
+            ((lowerText.contains("紧急") || lowerText.contains("求助") || lowerText.contains("帮助")) &&
+                    (lowerText.contains("呼叫") || lowerText.contains("电话") || lowerText.contains("联系"))) ||
+                    (lowerText.contains("emergency") && (lowerText.contains("call") || lowerText.contains("help"))) ||
+                    lowerText.contains("emergency call") || lowerText.contains("call help") ||
+                    lowerText.contains("help me") || lowerText.contains("sos") -> {
                 VoiceCommand.EMERGENCY_CALL
             }
-            (lowerText.contains("清空") || lowerText.contains("删除") || lowerText.contains("清理")) &&
-                    (lowerText.contains("录像") || lowerText.contains("视频") || lowerText.contains("缓存")) -> {
+            // 清空录像 - Clear recordings
+            ((lowerText.contains("清空") || lowerText.contains("删除") || lowerText.contains("清理")) &&
+                    (lowerText.contains("录像") || lowerText.contains("视频") || lowerText.contains("缓存"))) ||
+                    ((lowerText.contains("clear") || lowerText.contains("delete") || lowerText.contains("remove")) &&
+                            (lowerText.contains("recording") || lowerText.contains("video") || lowerText.contains("cache"))) ||
+                    lowerText.contains("clear recordings") || lowerText.contains("delete videos") -> {
                 VoiceCommand.CLEAR_RECORDINGS
             }
-            lowerText.contains("停止应用") || lowerText.contains("关闭应用") || lowerText.contains("退出") -> {
+            // 关闭应用 - Close app
+            lowerText.contains("停止应用") || lowerText.contains("关闭应用") || lowerText.contains("退出") ||
+                    lowerText.contains("close app") || lowerText.contains("exit") || lowerText.contains("quit") ||
+                    lowerText.contains("stop app") -> {
                 VoiceCommand.CLOSE_APP
             }
             else -> {
@@ -376,23 +427,110 @@ class VoiceRecognitionService(
 
         val lowerText = text.lowercase()
         return when {
-            lowerText.contains("拍照") || lowerText.contains("拍一张") || lowerText.contains("照相") -> {
+            // 拍照 - Take photo
+            lowerText.contains("拍照") || lowerText.contains("拍一张") || lowerText.contains("照相") ||
+                    lowerText.contains("take photo") || lowerText.contains("take picture") ||
+                    lowerText.contains("capture") || lowerText.contains("photo") -> {
                 VoiceCommand.CAPTURE_PHOTO
             }
-            lowerText.contains("暂停") && (lowerText.contains("录像") || lowerText.contains("录制")) -> {
+            // 暂停录像 - Pause recording
+            (lowerText.contains("暂停") && (lowerText.contains("录像") || lowerText.contains("录制"))) ||
+                    (lowerText.contains("pause") && (lowerText.contains("recording") || lowerText.contains("video"))) ||
+                    lowerText.contains("pause recording") -> {
                 VoiceCommand.PAUSE_RECORDING
             }
-            (lowerText.contains("继续") || lowerText.contains("开始") || lowerText.contains("恢复")) &&
-                    (lowerText.contains("录像") || lowerText.contains("录制")) -> {
+            // 继续录像 - Resume recording
+            ((lowerText.contains("继续") || lowerText.contains("开始") || lowerText.contains("恢复")) &&
+                    (lowerText.contains("录像") || lowerText.contains("录制"))) ||
+                    ((lowerText.contains("resume") || lowerText.contains("continue") || lowerText.contains("start")) &&
+                            (lowerText.contains("recording") || lowerText.contains("video"))) ||
+                    lowerText.contains("resume recording") || lowerText.contains("continue recording") -> {
                 VoiceCommand.RESUME_RECORDING
             }
+            // 播放视频 - Play video
+            ((lowerText.contains("播放") || lowerText.contains("查看") || lowerText.contains("打开")) &&
+                    (lowerText.contains("视频") || lowerText.contains("录像") || lowerText.contains("最新"))) ||
+                    (lowerText.contains("play") && (lowerText.contains("video") || lowerText.contains("latest"))) ||
+                    lowerText.contains("play video") || lowerText.contains("play latest") -> {
+                VoiceCommand.PLAY_VIDEO
+            }
+            // 分享视频 - Share video
+            ((lowerText.contains("分享") || lowerText.contains("发送")) &&
+                    (lowerText.contains("视频") || lowerText.contains("录像") || lowerText.contains("最新"))) ||
+                    (lowerText.contains("share") && (lowerText.contains("video") || lowerText.contains("latest"))) ||
+                    lowerText.contains("share video") || lowerText.contains("send video") -> {
+                VoiceCommand.SHARE_VIDEO
+            }
+            // 切换摄像头 - Switch camera
+            ((lowerText.contains("切换") || lowerText.contains("转换")) &&
+                    (lowerText.contains("摄像头") || lowerText.contains("相机") || lowerText.contains("镜头"))) ||
+                    (lowerText.contains("switch") && lowerText.contains("camera")) ||
+                    lowerText.contains("switch camera") || lowerText.contains("flip camera") -> {
+                VoiceCommand.SWITCH_CAMERA
+            }
+            // 切换闪光灯 - Toggle flashlight
+            ((lowerText.contains("打开") || lowerText.contains("关闭") || lowerText.contains("切换")) &&
+                    (lowerText.contains("闪光灯") || lowerText.contains("手电筒") || lowerText.contains("补光"))) ||
+                    (lowerText.contains("flash") || lowerText.contains("flashlight") || lowerText.contains("torch")) ||
+                    lowerText.contains("toggle flash") || lowerText.contains("turn on flash") ||
+                    lowerText.contains("turn off flash") -> {
+                VoiceCommand.TOGGLE_FLASHLIGHT
+            }
+            // 查询存储 - Check storage
+            ((lowerText.contains("查询") || lowerText.contains("检查") || lowerText.contains("查看")) &&
+                    (lowerText.contains("存储") || lowerText.contains("空间") || lowerText.contains("内存"))) ||
+                    ((lowerText.contains("check") || lowerText.contains("show")) &&
+                            (lowerText.contains("storage") || lowerText.contains("space") || lowerText.contains("memory"))) ||
+                    lowerText.contains("check storage") || lowerText.contains("storage info") -> {
+                VoiceCommand.CHECK_STORAGE
+            }
+            // 查询电池 - Check battery
             (lowerText.contains("查询") || lowerText.contains("检查") || lowerText.contains("查看")) &&
-                    (lowerText.contains("电池") || lowerText.contains("电量") || lowerText.contains("充电")) -> {
+                    (lowerText.contains("电池") || lowerText.contains("电量") || lowerText.contains("充电")) ||
+                    ((lowerText.contains("check") || lowerText.contains("show")) &&
+                            (lowerText.contains("battery") || lowerText.contains("power"))) ||
+                    lowerText.contains("check battery") || lowerText.contains("battery level") -> {
                 VoiceCommand.CHECK_BATTERY
             }
-            (lowerText.contains("查询") || lowerText.contains("检查") || lowerText.contains("查看")) &&
-                    (lowerText.contains("存储") || lowerText.contains("空间") || lowerText.contains("内存")) -> {
-                VoiceCommand.CHECK_STORAGE
+            // 查询录像时长 - Check recording time
+            ((lowerText.contains("查询") || lowerText.contains("查看")) &&
+                    (lowerText.contains("录像时长") || lowerText.contains("录了多久") || lowerText.contains("时长"))) ||
+                    ((lowerText.contains("check") || lowerText.contains("show")) &&
+                            (lowerText.contains("recording time") || lowerText.contains("duration"))) ||
+                    lowerText.contains("how long") || lowerText.contains("check time") -> {
+                VoiceCommand.CHECK_RECORDING_TIME
+            }
+            // 查询位置 - Check location
+            ((lowerText.contains("查询") || lowerText.contains("查看") || lowerText.contains("检查")) &&
+                    (lowerText.contains("位置") || lowerText.contains("定位") || lowerText.contains("GPS") ||
+                            lowerText.contains("坐标") || lowerText.contains("在哪") || lowerText.contains("地点"))) ||
+                    ((lowerText.contains("check") || lowerText.contains("show") || lowerText.contains("where")) &&
+                            (lowerText.contains("location") || lowerText.contains("gps") || lowerText.contains("position"))) ||
+                    lowerText.contains("check location") || lowerText.contains("my location") ||
+                    lowerText.contains("where am i") -> {
+                VoiceCommand.CHECK_LOCATION
+            }
+            // 紧急呼叫 - Emergency call
+            ((lowerText.contains("紧急") || lowerText.contains("求助") || lowerText.contains("帮助")) &&
+                    (lowerText.contains("呼叫") || lowerText.contains("电话") || lowerText.contains("联系"))) ||
+                    (lowerText.contains("emergency") && (lowerText.contains("call") || lowerText.contains("help"))) ||
+                    lowerText.contains("emergency call") || lowerText.contains("call help") ||
+                    lowerText.contains("help me") || lowerText.contains("sos") -> {
+                VoiceCommand.EMERGENCY_CALL
+            }
+            // 清空录像 - Clear recordings
+            ((lowerText.contains("清空") || lowerText.contains("删除") || lowerText.contains("清理")) &&
+                    (lowerText.contains("录像") || lowerText.contains("视频") || lowerText.contains("缓存"))) ||
+                    ((lowerText.contains("clear") || lowerText.contains("delete") || lowerText.contains("remove")) &&
+                            (lowerText.contains("recording") || lowerText.contains("video") || lowerText.contains("cache"))) ||
+                    lowerText.contains("clear recordings") || lowerText.contains("delete videos") -> {
+                VoiceCommand.CLEAR_RECORDINGS
+            }
+            // 关闭应用 - Close app
+            lowerText.contains("停止应用") || lowerText.contains("关闭应用") || lowerText.contains("退出") ||
+                    lowerText.contains("close app") || lowerText.contains("exit") || lowerText.contains("quit") ||
+                    lowerText.contains("stop app") -> {
+                VoiceCommand.CLOSE_APP
             }
             else -> VoiceCommand.UNKNOWN
         }
