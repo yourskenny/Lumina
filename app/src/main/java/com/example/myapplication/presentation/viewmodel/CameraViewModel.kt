@@ -329,6 +329,11 @@ class CameraViewModel(
                 hapticService.feedbackCapture()
                 Log.d(TAG, "照片已保存: ${outputFile.absolutePath}")
 
+                // 添加照片到媒体库，使其在系统相册中可见
+                viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    mediaRepository.addPhotoToMediaStore(outputFile)
+                }
+
                 // AI 分析照片
                 performAIAnalysis(outputFile)
             },
@@ -669,6 +674,21 @@ class CameraViewModel(
         _uiState.value = _uiState.value.copy(currentLanguage = newLanguage)
         ttsService.speak("已切换到${newLanguage}识别")
         Log.d(TAG, "切换语言到: $newLanguage")
+    }
+
+    /**
+     * 切换语音识别启用/禁用
+     */
+    fun toggleVoiceRecognition() {
+        if (voiceService.isEnabled()) {
+            voiceService.disable()
+            ttsService.speak("语音识别已禁用")
+            Log.d(TAG, "语音识别已禁用")
+        } else {
+            voiceService.enable()
+            ttsService.speak("语音识别已启用")
+            Log.d(TAG, "语音识别已启用")
+        }
     }
 
     /**

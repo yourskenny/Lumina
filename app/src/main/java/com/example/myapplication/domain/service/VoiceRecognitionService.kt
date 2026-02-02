@@ -60,6 +60,7 @@ class VoiceRecognitionService(
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
     private var shouldRestart = true // 是否自动重启监听
+    private var isEnabled = true // 是否启用语音识别（可通过UI控制）
     private var currentVolume = 0f   // 当前音量
     private var currentLanguage = "zh-CN" // 当前语言：zh-CN(中文) 或 en-US(英文) - 默认中文
     private var languagePackError = false // 语言包是否出错
@@ -239,14 +240,14 @@ class VoiceRecognitionService(
                             }
                             SpeechRecognizer.ERROR_NO_MATCH,
                             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
-                                200L // 无匹配/超时快速重启，保持连续监听
+                                2000L // 无匹配/超时等待2秒再重启，避免频繁循环
                             }
                             else -> 1000L // 其他错误等待1秒
                         }
 
                         CoroutineScope(Dispatchers.Main).launch {
                             delay(delayTime)
-                            if (shouldRestart) {
+                            if (shouldRestart && isEnabled) {
                                 Log.d(TAG, "🔄 尝试重新启动识别器...")
                                 startListening()
                             }
@@ -272,11 +273,11 @@ class VoiceRecognitionService(
                     // 关键修复：识别完成后，立即设置为false以允许重启
                     isListening = false
 
-                    // 自动重启监听 - 缩短延迟以实现连续监听
-                    if (shouldRestart) {
+                    // 自动重启监听 - 适当延迟避免频繁循环
+                    if (shouldRestart && isEnabled) {
                         CoroutineScope(Dispatchers.Main).launch {
-                            delay(200)  // 减少延迟从500ms到200ms
-                            if (shouldRestart) {
+                            delay(1000)  // 等待1秒再重启，避免过于频繁
+                            if (shouldRestart && isEnabled) {
                                 Log.d(TAG, "🔄 自动重启监听...")
                                 startListening()
                             }
@@ -835,6 +836,39 @@ class VoiceRecognitionService(
         isListening = false
         speechRecognizer?.stopListening()
         Log.d(TAG, "停止监听语音命令")
+    }
+
+    /**
+     * 启用语音识别
+     */
+    fun enable() {
+        if (isEnabled) {
+            Log.d(TAG, "语音识别已经启用")
+            return
+        }
+        isEnabled = true
+        Log.d(TAG, "✅ 语音识别已启用")
+        startListening()
+    }
+
+    /**
+     * 禁用语音识别
+     */
+    fun disable() {
+        if (!isEnabled) {
+            Log.d(TAG, "语音识别已经禁用")
+            return
+        }
+        isEnabled = false
+        Log.d(TAG, "❌ 语音识别已禁用")
+        stopListening()
+    }
+
+    /**
+     * 获取语音识别是否启用
+     */
+    fun isEnabled(): Boolean {
+        return isEnabled
     }
 
     /**

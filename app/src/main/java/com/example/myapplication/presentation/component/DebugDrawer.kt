@@ -35,9 +35,14 @@ fun DebugDrawer(
     currentLanguage: String,
     isAudioRecording: Boolean,
     audioRecordingCount: Int,
+    // AI 检测结果
+    analysisResult: String?,
+    detectedHazards: List<com.example.myapplication.data.model.RawObject>,
+    detectedPaths: List<com.example.myapplication.data.model.RawObject>,
     // 开发者测试按钮回调
     onTestMicrophone: () -> Unit,
     onSwitchLanguage: () -> Unit,
+    onToggleVoiceRecognition: () -> Unit,
     onTestRecognition: () -> Unit,
     onTestSimpleRecognition: () -> Unit,
     onToggleAudioRecording: () -> Unit,
@@ -130,6 +135,15 @@ fun DebugDrawer(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        // AI 检测结果显示
+                        AIDetectionCard(
+                            analysisResult = analysisResult,
+                            detectedHazards = detectedHazards,
+                            detectedPaths = detectedPaths
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
                         // 用户功能按钮区域
                         UserFunctionSection(
                             onTakePhoto = onTakePhoto,
@@ -154,10 +168,12 @@ fun DebugDrawer(
                         DeveloperTestSection(
                             onTestMicrophone = onTestMicrophone,
                             onSwitchLanguage = onSwitchLanguage,
+                            onToggleVoiceRecognition = onToggleVoiceRecognition,
                             onTestRecognition = onTestRecognition,
                             onTestSimpleRecognition = onTestSimpleRecognition,
                             onToggleAudioRecording = onToggleAudioRecording,
                             onClearAudioRecordings = onClearAudioRecordings,
+                            isListening = isListening,
                             isAudioRecording = isAudioRecording,
                             audioRecordingCount = audioRecordingCount
                         )
@@ -478,10 +494,12 @@ private fun UserFunctionSection(
 private fun DeveloperTestSection(
     onTestMicrophone: () -> Unit,
     onSwitchLanguage: () -> Unit,
+    onToggleVoiceRecognition: () -> Unit,
     onTestRecognition: () -> Unit,
     onTestSimpleRecognition: () -> Unit,
     onToggleAudioRecording: () -> Unit,
     onClearAudioRecordings: () -> Unit,
+    isListening: Boolean,
     isAudioRecording: Boolean,
     audioRecordingCount: Int
 ) {
@@ -533,16 +551,42 @@ private fun DeveloperTestSection(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedButton(
+                    onClick = onToggleVoiceRecognition,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isListening) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        contentColor = if (isListening) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text(
+                        if (isListening) "禁用语音" else "启用语音",
+                        fontSize = 12.sp
+                    )
+                }
+                OutlinedButton(
                     onClick = onTestRecognition,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("测试识别", fontSize = 12.sp)
                 }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 OutlinedButton(
                     onClick = onTestSimpleRecognition,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("极简测试", fontSize = 12.sp)
+                }
+                OutlinedButton(
+                    onClick = { /* 占位按钮 */ },
+                    modifier = Modifier.weight(1f),
+                    enabled = false
+                ) {
+                    Text("", fontSize = 12.sp)
                 }
             }
 
@@ -565,6 +609,131 @@ private fun DeveloperTestSection(
                     enabled = audioRecordingCount > 0
                 ) {
                     Text("清空录音", fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * AI 检测结果卡片
+ */
+@Composable
+private fun AIDetectionCard(
+    analysisResult: String?,
+    detectedHazards: List<com.example.myapplication.data.model.RawObject>,
+    detectedPaths: List<com.example.myapplication.data.model.RawObject>
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Text(
+                text = "AI 检测结果",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 分析结果总结
+            if (analysisResult != null) {
+                val parts = analysisResult.split(": ", limit = 2)
+                if (parts.size == 2) {
+                    val status = parts[0]
+                    val description = parts[1]
+                    val statusColor = when (status.uppercase()) {
+                        "DANGER" -> Color(0xFFFF5252)
+                        "CAUTION" -> Color(0xFFFFB74D)
+                        "SAFE" -> Color(0xFF66BB6A)
+                        else -> Color.Gray
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .background(
+                                    statusColor,
+                                    shape = MaterialTheme.shapes.small
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = status,
+                            fontSize = 14.sp,
+                            color = statusColor,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+
+                    Text(
+                        text = description,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            } else {
+                Text(
+                    text = "未检测",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+
+            // 危险物体列表
+            if (detectedHazards.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "危险物体 (${detectedHazards.size})",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    style = MaterialTheme.typography.labelMedium
+                )
+                detectedHazards.take(3).forEach { hazard ->
+                    Text(
+                        text = "• ${hazard.name} - ${String.format("%.1f", hazard.distanceM)}m ${hazard.direction}",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.padding(start = 8.dp, top = 2.dp)
+                    )
+                }
+                if (detectedHazards.size > 3) {
+                    Text(
+                        text = "还有 ${detectedHazards.size - 3} 个...",
+                        fontSize = 10.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(start = 8.dp, top = 2.dp)
+                    )
+                }
+            }
+
+            // 路径列表
+            if (detectedPaths.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "可用路径 (${detectedPaths.size})",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    style = MaterialTheme.typography.labelMedium
+                )
+                detectedPaths.take(2).forEach { path ->
+                    Text(
+                        text = "• ${path.name} ${path.direction}",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.padding(start = 8.dp, top = 2.dp)
+                    )
                 }
             }
         }

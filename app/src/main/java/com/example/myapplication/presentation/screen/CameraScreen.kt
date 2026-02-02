@@ -138,9 +138,14 @@ fun CameraScreen(
                 currentLanguage = uiState.currentLanguage,
                 isAudioRecording = uiState.isAudioRecording,
                 audioRecordingCount = uiState.audioRecordingCount,
+                // AI 检测结果
+                analysisResult = uiState.analysisResult,
+                detectedHazards = uiState.detectedHazards,
+                detectedPaths = uiState.detectedPaths,
                 // 开发者测试按钮
                 onTestMicrophone = { viewModel.testMicrophone() },
                 onSwitchLanguage = { viewModel.switchVoiceLanguage() },
+                onToggleVoiceRecognition = { viewModel.toggleVoiceRecognition() },
                 onTestRecognition = { viewModel.testRecognition() },
                 onTestSimpleRecognition = { viewModel.testSimpleRecognition() },
                 onToggleAudioRecording = { viewModel.toggleAudioRecording() },

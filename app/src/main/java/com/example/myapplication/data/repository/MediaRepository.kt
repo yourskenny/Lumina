@@ -66,7 +66,7 @@ class MediaRepository(
 
     /**
      * 创建照片输出文件
-     * 使用MediaStore API将照片保存到Pictures/AccessibleCamera目录
+     * 保存到公共Pictures/AccessibleCamera目录
      * 文件名包含GPS位置信息（如果可用）
      * @return File对象
      */
@@ -85,23 +85,66 @@ class MediaRepository(
             }
         } ?: "AccessibleCamera_Photo_$timestamp.jpg"
 
-        val photoDir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            File(
-                context.getExternalFilesDir(Environment.DIRECTORY_PICTURES),
-                "AccessibleCamera"
-            )
-        } else {
-            File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-                "AccessibleCamera"
-            )
-        }
+        // 统一使用公共目录，方便用户在相册中查看
+        val photoDir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+            "AccessibleCamera"
+        )
 
         if (!photoDir.exists()) {
             photoDir.mkdirs()
         }
 
         return File(photoDir, fileName)
+    }
+
+    /**
+     * 将照片文件添加到媒体库
+     * 使照片在系统相册中可见
+     * @param photoFile 照片文件
+     */
+    fun addPhotoToMediaStore(photoFile: File) {
+        try {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, photoFile.name)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.DATE_ADDED, System.currentTimeMillis() / 1000)
+                put(MediaStore.Images.Media.DATE_MODIFIED, System.currentTimeMillis() / 1000)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/AccessibleCamera")
+                    put(MediaStore.Images.Media.IS_PENDING, 0)
+                } else {
+                    put(MediaStore.Images.Media.DATA, photoFile.absolutePath)
+                }
+
+                // 添加GPS位置信息
+                locationRepository?.getCurrentLocation()?.let { location ->
+                    if (location.isValid()) {
+                        put(MediaStore.Images.Media.LATITUDE, location.latitude)
+                        put(MediaStore.Images.Media.LONGITUDE, location.longitude)
+                        android.util.Log.d("MediaRepository", "照片MediaStore添加GPS: ${location.getShortDescription()}")
+                    }
+                }
+            }
+
+            val uri = context.contentResolver.insert(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                contentValues
+            )
+
+            if (uri != null) {
+                // 复制文件内容到MediaStore
+                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    photoFile.inputStream().use { inputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+                android.util.Log.d("MediaRepository", "照片已添加到媒体库: $uri")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MediaRepository", "添加照片到媒体库失败: ${e.message}", e)
+        }
     }
 
     /**
