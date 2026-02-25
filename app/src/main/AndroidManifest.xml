@@ -54,6 +54,18 @@
             </intent-filter>
         </activity>
 
+        <!-- AI测试Activity -->
+        <activity
+            android:name=".AITestActivity"
+            android:exported="true"
+            android:label="AI测试"
+            android:theme="@style/Theme.MyApplication">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <!-- 前台服务声明 -->
         <service
             android:name=".domain.service.CameraForegroundService"
