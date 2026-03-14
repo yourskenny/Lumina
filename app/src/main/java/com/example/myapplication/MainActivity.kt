@@ -129,6 +129,6 @@ class MainActivity : ComponentActivity() {
         ttsService.shutdown()
         voiceService.release()
         cameraRepository.release()
-        objectDetector.close() // 释放模型
+//        objectDetector.close() // 释放模型
     }
 }

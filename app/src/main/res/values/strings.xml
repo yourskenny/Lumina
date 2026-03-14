@@ -2,67 +2,18 @@
     <string name="app_name">无障碍相机</string>
 
     <!-- 权限相关 -->
-    <string name="permission_camera">相机权限</string>
-    <string name="permission_audio">录音权限</string>
-    <string name="permission_required">应用需要权限才能正常工作</string>
-    <string name="permission_camera_rationale">需要相机权限来录像和拍照</string>
-    <string name="permission_audio_rationale">需要录音权限来录制视频声音和识别语音命令</string>
-    <string name="permission_grant">授予权限</string>
-    <string name="permission_denied">权限被拒绝,部分功能将无法使用</string>
 
     <!-- 相机状态 -->
-    <string name="camera_idle">正在初始化</string>
-    <string name="camera_ready">准备就绪</string>
-    <string name="camera_recording">录像中</string>
-    <string name="camera_paused">已暂停</string>
-    <string name="camera_error">错误</string>
 
     <!-- 控制按钮 -->
-    <string name="button_capture_photo">拍照</string>
-    <string name="button_pause">暂停</string>
-    <string name="button_resume">继续</string>
-    <string name="button_clear_recordings">清空录像</string>
-    <string name="button_close">关闭</string>
 
     <!-- 语音提示 -->
-    <string name="tts_app_started">无障碍相机已启动</string>
-    <string name="tts_camera_initializing">正在初始化相机</string>
-    <string name="tts_camera_ready">相机准备就绪</string>
-    <string name="tts_recording_started">开始录像</string>
-    <string name="tts_recording_paused">录像已暂停</string>
-    <string name="tts_recording_resumed">继续录像</string>
-    <string name="tts_photo_captured">咔嚓,照片已保存</string>
-    <string name="tts_video_saved">视频已保存</string>
-    <string name="tts_storage_low">存储空间不足,请清理后继续</string>
-    <string name="tts_error">发生错误</string>
-    <string name="tts_closing_app">正在关闭应用</string>
-    <string name="tts_permissions_granted">权限已授予,正在启动相机</string>
-    <string name="tts_clearing_recordings">正在清空所有录像</string>
-    <string name="tts_recordings_cleared">已删除 %d 个文件</string>
-    <string name="tts_no_recordings_found">没有找到需要删除的文件</string>
-    <string name="tts_auto_cleanup">自动清理了超过10分钟的旧录像</string>
 
     <!-- 状态信息 -->
-    <string name="status_duration">时长</string>
-    <string name="status_size">大小</string>
-    <string name="status_segments">片段</string>
 
     <!-- 错误消息 -->
-    <string name="error_camera_init_failed">相机初始化失败</string>
-    <string name="error_recording_failed">录像失败</string>
-    <string name="error_photo_failed">拍照失败</string>
-    <string name="error_storage_full">存储空间已满</string>
 
     <!-- 无障碍描述 -->
-    <string name="content_desc_camera_preview">相机预览画面</string>
-    <string name="content_desc_recording_status">录像状态信息</string>
-    <string name="content_desc_capture_button">点击拍照</string>
-    <string name="content_desc_pause_button">点击暂停录像</string>
-    <string name="content_desc_resume_button">点击继续录像</string>
-    <string name="content_desc_clear_button">点击清空所有录像和照片</string>
-    <string name="content_desc_close_button">点击关闭应用</string>
 
     <!-- 功能说明 -->
-    <string name="feature_auto_cleanup">录像将自动保留最近10分钟的内容,超过10分钟的旧录像会被自动删除</string>
-    <string name="feature_voice_commands">支持语音命令:\n• 拍照 - 拍摄照片\n• 暂停录像 - 暂停录制\n• 继续录像 - 恢复录制\n• 清空录像 - 删除所有录像\n• 关闭应用 - 退出程序</string>
 </resources>

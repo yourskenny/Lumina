@@ -23,14 +23,14 @@ class ObjectDetector(private val context: Context) {
         private const val MODEL_NAME = "yoloe-v8s-seg.onnx"
         private const val CONFIDENCE_THRESHOLD = 0.4f
         private const val IOU_THRESHOLD = 0.5f
-        
+
         // 类别定义 (与 Python 端一致)
         private val TARGET_CLASSES = mapOf(
             "path" to setOf("crosswalk", "stairs", "tactile paving"),
             "hazard" to setOf("car", "motorcycle", "bicycle", "pole", "tree", "fire hydrant", "traffic cone"),
             "interaction" to setOf("person", "dog", "cat", "chair", "traffic light", "stop sign")
         )
-        
+
         // COCO 80 类名
         private val CLASS_NAMES = listOf(
             "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
@@ -61,7 +61,7 @@ class ObjectDetector(private val context: Context) {
             val sessionOptions = OrtSession.SessionOptions()
             sessionOptions.addNnapi()
             ortSession = ortEnvironment?.createSession(modelBytes, sessionOptions)
-            
+
             // 获取输入节点名称和尺寸
             inputName = ortSession?.inputNames?.iterator()?.next()
             val inputInfo = ortSession?.inputInfo?.get(inputName) as? TensorInfo
@@ -87,23 +87,23 @@ class ObjectDetector(private val context: Context) {
             floatBuffer,
             longArrayOf(1, 3, inputSize.toLong(), inputSize.toLong())
         )
-        
+
         val inputs = mapOf(inputName!! to inputTensor)
         var rawObjects = ArrayList<RawObject>()
 
         try {
             val results = ortSession?.run(inputs)
-            
+
             // YOLOE 输出解析
             // 输出 shape: [1, 116, num_anchors] (例如 [1, 116, 2100])
             // 0-3: cx, cy, w, h
             // 4-83: 80 class scores
             // 84-115: 32 mask protos (ignore for now)
-            
+
             val outputTensor = results?.get(0) as? ai.onnxruntime.OnnxTensor
             val outputBuffer = outputTensor?.floatBuffer
             val shape = outputTensor?.info?.shape // [1, 116, 2100]
-            
+
             if (outputBuffer != null && shape != null && shape.size == 3) {
                 val dim1 = shape[1].toInt()
                 val dim2 = shape[2].toInt()
@@ -145,15 +145,15 @@ class ObjectDetector(private val context: Context) {
                         ))
                     }
                 }
-                
+
                 // NMS (非极大值抑制)
                 val finalCandidates = nms(candidates)
-                
+
                 // 转换为业务对象 RawObject
                 for (cand in finalCandidates) {
                     val className = if (cand.classId in CLASS_NAMES.indices) CLASS_NAMES[cand.classId] else "unknown"
                     val (dist, dir) = calculateSpatialInfo(cand.box, bitmap.width, bitmap.height)
-                    
+
                     rawObjects.add(RawObject(
                         name = className,
                         distanceM = dist,
@@ -162,11 +162,11 @@ class ObjectDetector(private val context: Context) {
                     ))
                 }
             }
-            
+
             inputTensor.close()
             results?.close()
             outputTensor?.close()
-            
+
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -176,7 +176,7 @@ class ObjectDetector(private val context: Context) {
         val paths = ArrayList<RawObject>()
 
         for (obj in rawObjects) {
-            if (TARGET_CLASSES["hazard"]?.contains(obj.name) == true || 
+            if (TARGET_CLASSES["hazard"]?.contains(obj.name) == true ||
                 TARGET_CLASSES["interaction"]?.contains(obj.name) == true) {
                 hazards.add(obj)
             } else if (TARGET_CLASSES["path"]?.contains(obj.name) == true) {
@@ -186,23 +186,23 @@ class ObjectDetector(private val context: Context) {
 
         return DetectionResult(hazards, paths)
     }
-    
+
     // NMS 实现
     private fun nms(candidates: List<DetectionCandidate>): List<DetectionCandidate> {
         val sorted = candidates.sortedByDescending { it.score }
         val selected = ArrayList<DetectionCandidate>()
-        
+
         val active = BooleanArray(sorted.size) { true }
-        
+
         for (i in sorted.indices) {
             if (!active[i]) continue
-            
+
             val boxA = sorted[i]
             selected.add(boxA)
-            
+
             for (j in i + 1 until sorted.size) {
                 if (!active[j]) continue
-                
+
                 val boxB = sorted[j]
                 if (calculateIoU(boxA.box, boxB.box) > IOU_THRESHOLD) {
                     active[j] = false
@@ -211,57 +211,57 @@ class ObjectDetector(private val context: Context) {
         }
         return selected
     }
-    
+
     private fun calculateIoU(boxA: FloatArray, boxB: FloatArray): Float {
         val xA = maxOf(boxA[0], boxB[0])
         val yA = maxOf(boxA[1], boxB[1])
         val xB = minOf(boxA[2], boxB[2])
         val yB = minOf(boxA[3], boxB[3])
-        
+
         val interArea = maxOf(0f, xB - xA) * maxOf(0f, yB - yA)
-        
+
         val boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
         val boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
-        
+
         return interArea / (boxAArea + boxBArea - interArea)
     }
-    
+
     // 空间信息计算 (移植自 Python 代码)
     private fun calculateSpatialInfo(box: FloatArray, frameWidth: Int, frameHeight: Int): Pair<Double, String> {
         val x1 = box[0]
         val y1 = box[1]
         val x2 = box[2]
         val y2 = box[3]
-        
+
         // 计算中心点 X 坐标，判断方位
         val centerX = (x1 + x2) / 2
         val relativeX = centerX / frameWidth
-        
+
         val direction = when {
             relativeX < 0.33 -> "left"
             relativeX > 0.66 -> "right"
             else -> "center"
         }
-        
+
         // 启发式测距 (基于脚点 y2)
         val normalizedYBottom = y2 / frameHeight
-        
+
         val distance = when {
             normalizedYBottom > 0.9 -> 0.5
             normalizedYBottom > 0.75 -> 1.5
             normalizedYBottom > 0.5 -> 4.0
             else -> 8.0
         }
-        
+
         return Pair(distance, direction)
     }
-    
+
     private data class DetectionCandidate(
         val classId: Int,
         val score: Float,
         val box: FloatArray // [x1, y1, x2, y2]
     )
-    
+
     private fun preprocess(bitmap: Bitmap): java.nio.FloatBuffer {
         val scaledBitmap = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
         val buffer = ByteBuffer.allocateDirect(1 * 3 * inputSize * inputSize * 4)
@@ -287,11 +287,11 @@ class ObjectDetector(private val context: Context) {
             // B
             floatBuffer.put(2 * inputSize * inputSize + i, ((pixel and 0xFF) / 255.0f))
         }
-        
+
         floatBuffer.rewind()
         return floatBuffer
     }
-    
+
     fun close() {
         ortSession?.close()
         ortEnvironment?.close()
