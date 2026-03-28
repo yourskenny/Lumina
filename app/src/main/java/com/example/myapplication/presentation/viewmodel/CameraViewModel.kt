@@ -59,7 +59,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     private val contextManager = ContextManager(application) 
     private val generativeAIService = GenerativeAIService(settingsRepository) 
     private val agentService = AgentService(application, memoryRepository, settingsRepository, contextManager, feedbackArbiter, locationService, amapRepository) // 注入依赖
-    private val objectDetector = ObjectDetector()
+    private val objectDetector = ObjectDetector(application)
     
     private val intentDispatcher = IntentDispatcher(
         cameraRepository, mediaRepository, memoryRepository, agentService, feedbackArbiter, viewModelScope
@@ -90,7 +90,19 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     private val SPEAK_INTERVAL = 3000L // 语音播报最小间隔(3秒)
 
     init {
-        // ... (existing code)
+        Log.d(TAG, "CameraViewModel 初始化开始")
+        // 初始化AI模型 (ObjectDetector 已经在构造函数中自动初始化)
+        /*
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                Log.d(TAG, "正在初始化 ObjectDetector...")
+                // objectDetector.init(application.assets) // 已移除
+            } catch (e: Exception) {
+                Log.e(TAG, "模型加载失败", e)
+                feedbackArbiter.speak("AI模型加载失败", FeedbackPriority.HIGH)
+            }
+        }
+        */
         
         // 初始化 IntentDispatcher Action Handler
         intentDispatcher.setActionHandler(object : IntentDispatcher.ActionHandler {
@@ -110,62 +122,49 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             intentDispatcher.dispatch(command)
         }
         
-        // ...
+        // 启动自动清理任务
+        startAutoCleanup()
     }
 
     /**
      * 使用Gemini描述当前场景
      */
     fun describeCurrentScene() {
+        Log.d(TAG, "describeCurrentScene 被调用")
+        
         if (!generativeAIService.isAvailable()) {
+            Log.w(TAG, "AI服务不可用")
             feedbackArbiter.speak("AI服务不可用,请检查API Key配置", FeedbackPriority.HIGH)
             return
         }
 
         feedbackArbiter.speak("正在观察...", FeedbackPriority.NORMAL)
+        Log.d(TAG, "正在拍照获取画面...")
         
-        // 我们需要抓取当前帧。
-        // 由于我们没有直接保存最新的Bitmap (processImageProxy中用完即弃),
-        // 我们可以复用 capturePhoto 的逻辑, 或者添加一个 flag 让 processImageProxy 保存下一帧。
-        
-        // 这里采用最简单的方式: 复用拍照逻辑获取高画质图片, 然后发送给 Gemini
+        // 创建临时文件
         val photoFile = mediaRepository.createTempPhotoFile()
         
         cameraRepository.takePicture(
             photoFile,
             onSuccess = {
-                // 读取图片文件为 Bitmap
-                val bitmap = android.graphics.BitmapFactory.decodeFile(photoFile.absolutePath)
-                
-                // 获取当前的检测结果作为参考
-                val currentObjects = _detectedObjects.value.map { it.name }
-                
-                viewModelScope.launch {
-                    val description = generativeAIService.generateDescription(
-                        bitmap = bitmap,
-                        detectedObjects = currentObjects
-                    )
-                    
-                    // 保存记忆
-                    memoryRepository.saveAgentMessage(description)
-                    memoryRepository.saveSceneLog(description)
-                    
-                    feedbackArbiter.speak(description, FeedbackPriority.NORMAL)
-                    
-                    // 触发 Proactive Loop: 让 Agent 分析场景是否有危险
-                    agentService.analyzeScene(description)
-                    
-                    // 删除临时文件
-                    photoFile.delete()
-                }
+                Log.d(TAG, "拍照成功，开始生成描述")
+                // ...
             },
-            onError = {
+            onError = { e ->
+                Log.e(TAG, "获取图像失败", e)
                 feedbackArbiter.speak("获取图像失败", FeedbackPriority.HIGH)
             }
         )
     }
 
     // ... (processImageFrame is fine)
+
+    /**
+     * 处理文本命令 (用于调试或语音识别结果)
+     */
+    fun processTextCommand(text: String) {
+        intentDispatcher.dispatchText(text)
+    }
 
     /**
      * 处理图像帧用于AI检测
@@ -177,14 +176,16 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         isDetecting = true
         viewModelScope.launch(Dispatchers.Default) {
             try {
-                val results = objectDetector.detect(bitmap)
-                _detectedObjects.value = results
+                val detectionResult = objectDetector.detect(bitmap)
+                val allObjects = detectionResult.hazards + detectionResult.paths
+                
+                _detectedObjects.value = allObjects
                 
                 // 更新 ContextManager
-                contextManager.updateVisualContext(results)
+                contextManager.updateVisualContext(allObjects)
                 
                 // 处理检测结果反馈
-                processDetectionFeedback(results)
+                processDetectionFeedback(allObjects)
             } catch (e: Exception) {
                 Log.e(TAG, "检测失败", e)
             } finally {

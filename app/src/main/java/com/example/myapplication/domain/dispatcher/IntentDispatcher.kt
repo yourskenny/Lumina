@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.util.Log
 
 /**
  * 意图分发器
@@ -97,28 +98,35 @@ class IntentDispatcher(
         }
     }
     
+    private val TAG = "IntentDispatcher"
+
     /**
      * 分发纯文本查询 (来自 ASR 的未知命令)
      */
     fun dispatchText(text: String) {
-        scope.launch {
-            // 1. 记录用户输入
-            memoryRepository.saveUserMessage(text)
-            
-            // 2. 尝试本地规则匹配 (简单版)
-            if (text.contains("拍照") || text.contains("拍张照")) {
-                dispatch(VoiceCommand.CAPTURE_PHOTO)
-                return@launch
+        scope.launch(Dispatchers.IO) { // 切换到 IO 线程防止阻塞主线程
+            try {
+                // 1. 记录用户输入
+                memoryRepository.saveUserMessage(text)
+                
+                // 2. 尝试本地规则匹配
+                if (text.contains("拍照") || text.contains("拍张照")) {
+                    dispatch(VoiceCommand.CAPTURE_PHOTO)
+                    return@launch
+                }
+                
+                // 3. 交给 Agent
+                val response = agentService.chat(text)
+                
+                // 4. 记录 Agent 回复
+                memoryRepository.saveAgentMessage(response)
+                
+                // 5. 播报
+                feedbackArbiter.speak(response, FeedbackPriority.NORMAL)
+            } catch (e: Exception) {
+                Log.e(TAG, "处理文本指令失败", e)
+                feedbackArbiter.speak("处理失败: ${e.message}", FeedbackPriority.HIGH)
             }
-            
-            // 3. 交给 Agent
-            val response = agentService.chat(text)
-            
-            // 4. 记录 Agent 回复
-            memoryRepository.saveAgentMessage(response)
-            
-            // 5. 播报
-            feedbackArbiter.speak(response, FeedbackPriority.NORMAL)
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.example.myapplication.domain.feedback
 
+import android.util.Log
 import com.example.myapplication.domain.service.HapticFeedbackService
 import com.example.myapplication.domain.service.TextToSpeechService
 
@@ -21,7 +22,8 @@ class FeedbackArbiter(
     private val ttsService: TextToSpeechService,
     private val hapticService: HapticFeedbackService
 ) {
-
+    private val TAG = "FeedbackArbiter"
+    
     // 记录当前正在播放的优先级 (简化处理，实际上 TTS Service 内部也有队列)
     // 这里主要控制是否打断
     private var currentPriority = FeedbackPriority.LOW
@@ -30,29 +32,15 @@ class FeedbackArbiter(
      * 请求语音播报
      */
     fun speak(text: String, priority: FeedbackPriority = FeedbackPriority.NORMAL) {
-        val urgent = priority == FeedbackPriority.CRITICAL
-        // 如果是 CRITICAL，强制打断
-        // 如果是 HIGH，也打断 NORMAL/LOW，但如果当前是 CRITICAL 则不打断 (需要更复杂的逻辑，目前简化为 urgent=true 即打断)
-        
-        // 为了简化，我们只在 CRITICAL 时使用 urgent=true (QUEUE_FLUSH)
-        // HIGH/NORMAL/LOW 都使用 urgent=false (QUEUE_ADD)
-        // 这样可以保证紧急消息立即播报，其他消息排队
-        
-        // 但如果想让 HIGH 插队到 NORMAL 前面，Android TTS API 原生不支持插队，只能 FLUSH 或 ADD。
-        // 所以我们可能需要自己维护一个 PriorityQueue，但这比较复杂。
-        // 目前策略：
-        // CRITICAL -> FLUSH (打断一切)
-        // HIGH -> ADD (排队)
-        // NORMAL -> ADD (排队)
-        // LOW -> ADD (排队)
-        
-        // 修正：如果当前正在播报 LOW/NORMAL，HIGH 应该打断吗？
-        // 如果我们希望 HIGH (如"拍照成功") 立即反馈，那么它应该也是 urgent。
-        
-        val isUrgent = priority == FeedbackPriority.CRITICAL || priority == FeedbackPriority.HIGH
-        
-        ttsService.speak(text, urgent = isUrgent)
-        currentPriority = priority
+        try {
+            Log.d(TAG, "收到播报请求: '$text' [Priority: $priority]")
+            val isUrgent = priority == FeedbackPriority.CRITICAL || priority == FeedbackPriority.HIGH
+            
+            ttsService.speak(text, urgent = isUrgent)
+            currentPriority = priority
+        } catch (e: Exception) {
+            Log.e(TAG, "TTS 播报失败", e)
+        }
     }
 
     /**

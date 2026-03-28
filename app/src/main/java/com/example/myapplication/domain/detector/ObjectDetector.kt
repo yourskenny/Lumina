@@ -39,32 +39,57 @@ class ObjectDetector(
         "hair drier", "toothbrush"
     )
 
+    // VOC数据集标签 (20类) - 用于替换后的模型
+    private val vocLabels = listOf(
+        "aeroplane", "bicycle", "bird", "boat", "bottle",
+        "bus", "car", "cat", "chair", "cow",
+        "diningtable", "dog", "horse", "motorbike", "person",
+        "pottedplant", "sheep", "sofa", "train", "tvmonitor"
+    )
+
     // 配置参数
     private val CONFIDENCE_THRESHOLD = 0.5f
     private val IOU_THRESHOLD = 0.5f
-    private val INPUT_SIZE = 320
+    private val INPUT_SIZE = 640
 
     /**
      * 初始化检测器
      * @param assetsManager 资源管理器,用于加载模型
      */
     fun init(assetsManager: android.content.res.AssetManager) {
+        Log.d(TAG, "开始初始化ObjectDetector, 模型路径: $modelPath")
         try {
             // 初始化ONNX环境
             ortEnv = OrtEnvironment.getEnvironment()
+            Log.d(TAG, "OrtEnvironment 创建成功")
+            
+            // 检查模型文件是否存在
+            try {
+                assetsManager.open(modelPath).close()
+                Log.d(TAG, "模型文件 $modelPath 存在且可读")
+            } catch (e: Exception) {
+                Log.e(TAG, "模型文件 $modelPath 不存在或无法读取!", e)
+                throw e
+            }
             
             // 读取模型文件
             val modelBytes = assetsManager.open(modelPath).readBytes()
+            Log.d(TAG, "模型文件读取成功, 大小: ${modelBytes.size} bytes")
             
             // 创建会话
-            ortSession = ortEnv?.createSession(modelBytes, OrtSession.SessionOptions())
+            val sessionOptions = OrtSession.SessionOptions()
+            // 尝试使用 NNAPI (可选)
+            // sessionOptions.addNnapi() 
+            Log.d(TAG, "创建 OrtSession...")
+            ortSession = ortEnv?.createSession(modelBytes, sessionOptions)
+            Log.d(TAG, "OrtSession 创建成功")
             
             // 使用默认标签
             classes = defaultLabels
             
-            Log.d(TAG, "ObjectDetector初始化成功")
+            Log.d(TAG, "ObjectDetector初始化完全成功")
         } catch (e: Exception) {
-            Log.e(TAG, "ObjectDetector初始化失败", e)
+            Log.e(TAG, "ObjectDetector初始化失败 (FATAL)", e)
         }
     }
 
@@ -94,15 +119,19 @@ class ObjectDetector(
             val outputTensor = results?.get(0) as OnnxTensor
             val outputData = outputTensor.floatBuffer
             
-            val outputShape = outputTensor.info.shape
-            Log.d(TAG, "Output Shape: ${outputShape.contentToString()}")
+            val outputShape = outputTensor.info.shape // [1, 24, 8400] for VOC
             
-            // 4. 解析输出 [1, 84, 8400]
-            // 注意: ONNX Runtime Java 的 outputData 是展平的 FloatBuffer
-            // YOLOv8 输出维度: Batch(1) x Channels(84) x Anchors(8400)
-            // 84通道 = 4个坐标(cx,cy,w,h) + 80个类别置信度
+            // 动态选择标签
+            val numChannels = outputShape[1].toInt()
+            val numClasses = numChannels - 4
             
-            val detections = processOutput(outputData, bitmap.width, bitmap.height)
+            if (numClasses == 20) {
+                classes = vocLabels
+            } else if (numClasses == 80) {
+                classes = defaultLabels
+            }
+            
+            val detections = processOutput(outputData, outputShape, bitmap.width, bitmap.height)
             
             if (detections.isNotEmpty()) {
                 Log.d(TAG, "检测到 ${detections.size} 个物体: ${detections.first().name} ${detections.first().box}")
@@ -154,11 +183,13 @@ class ObjectDetector(
     /**
      * 解析模型输出
      */
-    private fun processOutput(output: FloatBuffer, imgWidth: Int, imgHeight: Int): List<RawObject> {
+    private fun processOutput(output: FloatBuffer, shape: LongArray, imgWidth: Int, imgHeight: Int): List<RawObject> {
         val candidates = ArrayList<Detection>()
         
-        val numChannels = 84 // 4 + 80
-        val numAnchors = output.capacity() / numChannels
+        // shape: [1, Channels, Anchors]
+        val numChannels = shape[1].toInt()
+        val numAnchors = shape[2].toInt()
+        val numClasses = numChannels - 4
         
         output.rewind()
         val data = FloatArray(output.capacity())
@@ -169,9 +200,9 @@ class ObjectDetector(
             var maxScore = -Float.MAX_VALUE
             var maxClassIndex = -1
             
-            // 遍历80个类别 (从索引4开始)
-            for (c in 0 until 80) {
-                // index = (4 + c) * 8400 + i
+            // 遍历所有类别
+            for (c in 0 until numClasses) {
+                // index = (4 + c) * numAnchors + i
                 val score = data[(4 + c) * numAnchors + i]
                 if (score > maxScore) {
                     maxScore = score
@@ -181,7 +212,7 @@ class ObjectDetector(
             
             if (maxScore > CONFIDENCE_THRESHOLD) {
                 // 获取坐标
-                // cx = data[0 * 8400 + i]
+                // cx = data[0 * numAnchors + i]
                 val cx = data[0 * numAnchors + i]
                 val cy = data[1 * numAnchors + i]
                 val w = data[2 * numAnchors + i]

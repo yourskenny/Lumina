@@ -5,6 +5,7 @@ import com.amap.api.location.AMapLocation
 import com.amap.api.location.AMapLocationClient
 import com.amap.api.location.AMapLocationClientOption
 import com.amap.api.location.AMapLocationListener
+import android.util.Log
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -16,6 +17,8 @@ class LocationService(private val context: Context) {
 
     private var locationClient: AMapLocationClient? = null
 
+    private val TAG = "LocationService"
+
     /**
      * 获取单次定位结果
      */
@@ -23,53 +26,38 @@ class LocationService(private val context: Context) {
         try {
             // 初始化定位客户端
             locationClient = AMapLocationClient(context)
-            
-            // 设置定位参数
+
             val option = AMapLocationClientOption().apply {
                 locationMode = AMapLocationClientOption.AMapLocationMode.Hight_Accuracy
-                isOnceLocation = true // 单次定位
-                isNeedAddress = true  // 返回地址信息
-                httpTimeOut = 5000    // 超时时间
+                isOnceLocation = true
+                isNeedAddress = true
+                httpTimeOut = 5000
             }
             
             locationClient?.setLocationOption(option)
-            
-            // 设置定位监听
-            locationClient?.setLocationListener(object : AMapLocationListener {
-                override fun onLocationChanged(location: AMapLocation?) {
-                    if (location != null) {
-                        if (location.errorCode == 0) {
-                            if (continuation.isActive) {
-                                continuation.resume(location)
-                            }
-                        } else {
-                            if (continuation.isActive) {
-                                continuation.resumeWithException(
-                                    Exception("定位失败: ${location.errorCode} - ${location.errorInfo}")
-                                )
-                            }
-                        }
+            locationClient?.setLocationListener { location ->
+                if (location != null) {
+                    if (location.errorCode == 0) {
+                        if (continuation.isActive) continuation.resume(location)
                     } else {
-                        if (continuation.isActive) {
-                            continuation.resumeWithException(Exception("定位结果为空"))
-                        }
+                        val error = "定位失败: ${location.errorInfo} (Code:${location.errorCode})"
+                        Log.e(TAG, error)
+                        if (continuation.isActive) continuation.resumeWithException(Exception(error))
                     }
-                    stopLocation()
+                } else {
+                    Log.e(TAG, "Location is NULL")
+                    if (continuation.isActive) continuation.resumeWithException(Exception("定位结果为空"))
                 }
-            })
-            
-            // 启动定位
-            locationClient?.startLocation()
-            
-            // 协程取消时停止定位
-            continuation.invokeOnCancellation {
                 stopLocation()
             }
+            locationClient?.startLocation()
             
-        } catch (e: Exception) {
-            if (continuation.isActive) {
-                continuation.resumeWithException(e)
+            continuation.invokeOnCancellation { 
+                stopLocation() 
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "定位服务异常", e)
+            if (continuation.isActive) continuation.resumeWithException(e)
         }
     }
     

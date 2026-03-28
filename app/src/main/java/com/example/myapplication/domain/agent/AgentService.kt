@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
  */
 import com.example.myapplication.data.repository.AMapRepository
 import com.example.myapplication.domain.service.LocationService
+import android.util.Log
 
 class AgentService(
     private val context: Context,
@@ -67,36 +68,25 @@ class AgentService(
                     .build()
                 
                 lastConfigHash = currentHash
-            } catch (e: Exception) {
-                e.printStackTrace()
+                Log.d(TAG, "AgentService initialized successfully")
+            } catch (t: Throwable) {
+                Log.e(TAG, "AgentService initialization failed (FATAL)", t)
             }
         }
     }
 
-    suspend fun chat(query: String): String {
+    private val TAG = "AgentService"
+
+    suspend fun chat(userMessage: String): String = withContext(Dispatchers.IO) {
         ensureAssistantInitialized()
-        return withContext(Dispatchers.IO) {
-            try {
-                // 获取最近的记忆作为上下文
-                val recentMessages = memoryRepository.getRecentContext(5)
-                val contextString = recentMessages.joinToString("\n") { "${it.role}: ${it.content}" }
-                
-                // 获取实时环境上下文 (YOLO, Location, Battery)
-                val realTimeContext = contextManager.getContextPrompt()
-
-                val fullPrompt = """
-                    $realTimeContext
-
-                    历史对话:
-                    $contextString
-                    
-                    用户: $query
-                """.trimIndent()
-                
-                assistant?.chat(fullPrompt) ?: "智能体未配置 (请在设置中配置 API Key)"
-            } catch (e: Exception) {
-                "思考过程中出错: ${e.message}"
+        try {
+            if (assistant == null) {
+                return@withContext "智能助手初始化失败，请检查设置。"
             }
+            return@withContext assistant!!.chat(userMessage)
+        } catch (e: Exception) {
+            Log.e(TAG, "Chat failed", e)
+            return@withContext "思考过程中发生了错误: ${e.message}"
         }
     }
     

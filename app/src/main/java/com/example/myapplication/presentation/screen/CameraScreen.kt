@@ -1,6 +1,7 @@
 package com.example.myapplication.presentation.screen
 
 import android.view.ViewGroup
+import android.util.Log
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideocamOff
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -182,9 +184,22 @@ fun CameraScreen(
                 )
             }
 
+            // [调试] 描述按钮
+            IconButton(
+                onClick = { viewModel.describeCurrentScene() },
+                modifier = Modifier.size(64.dp)
+            ) {
+                androidx.compose.material3.Icon(
+                    imageVector = Icons.Default.Visibility,
+                    contentDescription = "描述",
+                    tint = Color.Cyan,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+
             // 语音按钮
             AccessibleButton(
-                onClick = { /* 长按触发 */ },
+                onClick = { viewModel.processTextCommand("我在哪里") }, // 单击测试定位
                 onLongClick = { viewModel.startVoiceListening() },
                 modifier = Modifier.padding(16.dp),
                 contentDescription = "按住说话",

@@ -10,3 +10,13 @@
 local.properties
 .trae
 gradle/wrapper/*.zip
+
+build/
+app/build/
+.gradle/
+local.properties
+
+
+temp_gitee_repo/
+temp_yolo_repo/
+
