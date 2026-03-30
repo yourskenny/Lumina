@@ -1,6 +1,7 @@
-fastapi
-uvicorn
-python-multipart
-opencv-python
-numpy
 ultralytics
+opencv-python
+python-dotenv
+openai
+pyttsx3
+SpeechRecognition
+PyAudio

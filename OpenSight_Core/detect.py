@@ -17,10 +17,10 @@ def run_lumina():
         print(f"Critical Error: Failed to initialize AI engine. {e}")
         return
 
-    # 打开摄像头
-    cap = cv2.VideoCapture(0)
+    # 打开视频文件（原为摄像头 0）
+    cap = cv2.VideoCapture("test_video.mp4")
     if not cap.isOpened():
-        print("Error: Camera not found.")
+        print("Error: test_video.mp4 not found. Make sure the video is in the same directory.")
         return
 
     print("System Ready. Press 'q' to exit.")
